@@ -13,6 +13,7 @@ import {
 import { useEffect, useState } from "react";
 import { BrainCircuit, CalendarRange, Download, FileSpreadsheet, UploadCloud } from "lucide-react";
 import {
+  monthOptions as defaultMonthOptions,
   monthlyDashboardMetrics,
   monthlyDashboardRows,
   monthlyOpenTrend,
@@ -81,9 +82,9 @@ const defaultMonthlyApproaches = [
   },
 ];
 
-export function MonthlyComparison({ uploaded, onUpload, selectedSource, selectedMonth, onMonthChange, monthOptions }) {
+export function MonthlyComparison({ uploaded, onUpload, selectedSource, selectedMonth, onMonthChange, monthOptions, detectedFileCount, onFilesReady }) {
   if (!uploaded) {
-    return <MonthlyUploadGate onUpload={onUpload} selectedSource={selectedSource} />;
+    return <MonthlyUploadGate onUpload={onUpload} selectedSource={selectedSource} detectedFileCount={detectedFileCount} onFilesReady={onFilesReady} />;
   }
 
   return (
@@ -282,22 +283,59 @@ function ChartPanel({ title, children }) {
   );
 }
 
-function MonthlyUploadGate({ onUpload, selectedSource }) {
+function MonthlyUploadGate({ onUpload, selectedSource, detectedFileCount, onFilesReady }) {
   const [filesReady, setFilesReady] = useState(false);
-  const [fileCount, setFileCount] = useState(0);
+  const [fileCount, setFileCount] = useState(detectedFileCount || 0);
+  const [detectedMonths, setDetectedMonths] = useState([]);
+  const [fileNames, setFileNames] = useState([]);
   const approaches = tenableMonthlyApproaches[selectedSource?.id] ?? defaultMonthlyApproaches;
   const [selectedApproach, setSelectedApproach] = useState(approaches[0]?.id ?? "same-source");
   const isTenable = selectedSource?.id === "tenable-sc" || selectedSource?.id === "tenable-io";
   const sourceName = selectedSource?.name ?? "Selected source";
+  const canAnalyze = filesReady && fileCount >= 2;
 
   useEffect(() => {
     setSelectedApproach(approaches[0]?.id ?? "same-source");
   }, [approaches, selectedSource?.id]);
 
-  const markFilesReady = (event) => {
-    const nextFileCount = event?.target?.files?.length ?? 4;
+  const publishSelection = ({ nextFileCount, nextMonths, nextFileNames }) => {
     setFileCount(nextFileCount);
+    setDetectedMonths(nextMonths);
+    setFileNames(nextFileNames);
     setFilesReady(true);
+    onFilesReady?.({ fileCount: nextFileCount, months: nextMonths });
+  };
+
+  const markFilesReady = (event) => {
+    const selectedFiles = Array.from(event?.target?.files ?? []);
+    const nextFileCount = selectedFiles.length;
+    const nextFileNames = selectedFiles.map((file) => file.name);
+    const nextMonths = extractMonthsFromFileNames(nextFileNames);
+
+    publishSelection({
+      nextFileCount,
+      nextMonths,
+      nextFileNames,
+    });
+  };
+
+  const useSampleFiles = () => {
+    publishSelection({
+      nextFileCount: defaultMonthOptions.length,
+      nextMonths: defaultMonthOptions,
+      nextFileNames: defaultMonthOptions.map((month) => `${sourceName.toLowerCase().replaceAll(" ", "_")}_${month.toLowerCase().replaceAll(" ", "_")}_sample.csv`),
+    });
+  };
+
+  const analyzeMonthlyFiles = () => {
+    if (!canAnalyze) {
+      return;
+    }
+
+    onUpload?.({
+      fileCount,
+      months: detectedMonths.length ? detectedMonths : defaultMonthOptions,
+    });
   };
 
   return (
@@ -310,8 +348,16 @@ function MonthlyUploadGate({ onUpload, selectedSource }) {
             Upload at least two monthly exports. For Tenable.sc and Tenable.io, you can either analyze one source across many months or mix SC and IO month files during a migration.
           </p>
         </div>
-        <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-4 py-2 text-sm font-bold text-amber-200">
-          {filesReady ? `${fileCount || 4} month files ready` : "No month detected yet"}
+        <span
+          className={`rounded-full border px-4 py-2 text-sm font-bold ${
+            canAnalyze
+              ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-200"
+              : filesReady
+                ? "border-amber-300/25 bg-amber-300/10 text-amber-200"
+                : "border-slate-300/15 bg-white/5 text-slate-300"
+          }`}
+        >
+          {canAnalyze ? `${fileCount} reports ready` : filesReady ? `${fileCount} file selected - add at least ${Math.max(0, 2 - fileCount)} more` : "No month detected yet"}
         </span>
       </div>
 
@@ -353,18 +399,47 @@ function MonthlyUploadGate({ onUpload, selectedSource }) {
             </p>
             <p className="mt-1 text-sm font-semibold text-slate-500">
               {filesReady
-                ? "Click Analyze to generate the dashboard and Excel report"
+                ? canAnalyze
+                  ? "Click Analyze to generate the dashboard, Excel report, and PDF month options"
+                  : "Monthly comparison requires at least two files. Hold Command/Shift to select multiple CSVs."
                 : isTenable
                   ? "Supports SC-only, IO-only, or mixed SC + IO monthly exports"
                   : "Example: April + May + June + July"}
             </p>
           </label>
+
+          {filesReady && (
+            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="font-black text-white">Detected report months</p>
+                <p className="text-xs font-bold text-slate-500">{fileCount} file{fileCount === 1 ? "" : "s"} selected</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(detectedMonths.length ? detectedMonths : ["Month not detected from filename"]).map((month) => (
+                  <span key={month} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-100">
+                    {month}
+                  </span>
+                ))}
+              </div>
+              {fileNames.length > 0 && (
+                <div className="mt-3 max-h-28 overflow-auto rounded-xl border border-white/10 bg-black/20 p-3">
+                  {fileNames.map((fileName) => (
+                    <p key={fileName} className="truncate font-mono text-xs font-semibold text-slate-400">
+                      {fileName}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             type="button"
-            onClick={filesReady ? onUpload : markFilesReady}
-            className={filesReady ? "neon-button mt-4 w-full" : "ghost-button mt-4 w-full"}
+            onClick={filesReady ? analyzeMonthlyFiles : useSampleFiles}
+            disabled={filesReady && !canAnalyze}
+            className={canAnalyze ? "neon-button mt-4 w-full" : "ghost-button mt-4 w-full disabled:cursor-not-allowed disabled:opacity-50"}
           >
-            {filesReady ? "Analyze & Generate Excel Report" : "Use sample multi-month files"}
+            {canAnalyze ? "Analyze & Generate Excel Report" : filesReady ? "Select at least 2 monthly reports" : "Use sample multi-month files"}
           </button>
         </div>
 
@@ -386,4 +461,42 @@ function MonthlyUploadGate({ onUpload, selectedSource }) {
       </div>
     </section>
   );
+}
+
+const monthAliases = [
+  ["January", /(?:jan|january)/i],
+  ["February", /(?:feb|february)/i],
+  ["March", /(?:mar|march)/i],
+  ["April", /(?:apr|april)/i],
+  ["May", /(?:may)/i],
+  ["June", /(?:jun|june)/i],
+  ["July", /(?:jul|july)/i],
+  ["August", /(?:aug|august)/i],
+  ["September", /(?:sep|sept|september)/i],
+  ["October", /(?:oct|october)/i],
+  ["November", /(?:nov|november)/i],
+  ["December", /(?:dec|december)/i],
+];
+
+function extractMonthsFromFileNames(fileNames) {
+  const detected = fileNames
+    .map((fileName) => {
+      const normalized = fileName.replace(/[_-]+/g, " ");
+      const yearMatch = normalized.match(/\b(20\d{2})\b/);
+      const monthIndex = monthAliases.findIndex(([, pattern]) => pattern.test(normalized));
+
+      if (monthIndex === -1 || !yearMatch) {
+        return null;
+      }
+
+      return {
+        label: `${monthAliases[monthIndex][0]} ${yearMatch[1]}`,
+        sortKey: Number(yearMatch[1]) * 100 + monthIndex,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.sortKey - b.sortKey)
+    .map((item) => item.label);
+
+  return [...new Set(detected)];
 }

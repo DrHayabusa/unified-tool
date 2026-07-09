@@ -61,6 +61,7 @@ Dashboard landing/config page
 Adhoc scan workflow
 Monthly comparison workflow
 AI remediation PDF panel
+Local API connectivity test
 Sample data and reference output package
 GitHub Pages deployment
 ```
@@ -125,7 +126,7 @@ Example:
 ```text
 NVIDIA_API_KEY=your_real_key_here
 NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-NVIDIA_MODEL=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+NVIDIA_MODEL=nvidia/nemotron-3-ultra-550b-a55b
 ```
 
 The `.gitignore` file ignores real `.env` files.
@@ -138,6 +139,33 @@ python3 tools/test_nvidia_connectivity.py
 ```
 
 The deployed UI also has a **Test API Connectivity** button in the AI PDF panel. That button is for testing your backend health endpoint. It does not expose or send provider API keys from the browser.
+
+To make the button work from your Mac, start the local API server first:
+
+```bash
+cd "/Users/mohammedshahid/Documents/New project/unified-tool"
+./run-local-api.sh
+```
+
+Then use this health URL in the UI:
+
+```text
+http://127.0.0.1:8000/health/nvidia
+```
+
+Expected result:
+
+```text
+API status: Connected: 200
+```
+
+The PDF generation button currently sends a placeholder backend request to:
+
+```text
+http://127.0.0.1:8000/generate/pdf
+```
+
+That endpoint confirms the UI/backend handoff works. The next production step is wiring this endpoint to the actual PDF builder and AI prompt pipeline.
 
 ## Sample Data for Testing
 

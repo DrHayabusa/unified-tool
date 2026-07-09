@@ -73,6 +73,45 @@ https://your-internal-mva-api.company.local/health
 
 It does not send the NVIDIA key from the browser. The backend must hold the key and expose a safe health endpoint.
 
+## Run the Local API Server for UI Testing
+
+Start this in a separate Terminal window:
+
+```bash
+cd "/Users/mohammedshahid/Documents/New project/unified-tool"
+./run-local-api.sh
+```
+
+The local API server exposes:
+
+```text
+http://127.0.0.1:8000/health
+http://127.0.0.1:8000/health/nvidia
+http://127.0.0.1:8000/generate/pdf
+```
+
+Then open the deployed UI:
+
+```text
+https://drhayabusa.github.io/unified-tool/
+```
+
+Select **NVIDIA NIM**, keep the health URL as:
+
+```text
+http://127.0.0.1:8000/health/nvidia
+```
+
+Click **Test API Connectivity**.
+
+Expected result:
+
+```text
+API status: Connected: 200
+```
+
+The **Generate AI PDF Report** button sends a placeholder request to `/generate/pdf`. The production backend should replace this placeholder endpoint with the real PDF generation pipeline.
+
 ## Production Pattern
 
 For production, use this pattern:

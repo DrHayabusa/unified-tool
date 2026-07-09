@@ -19,6 +19,8 @@ export default function App() {
   const [mode, setMode] = useState(null);
   const [adhocUploaded, setAdhocUploaded] = useState(false);
   const [monthlyUploaded, setMonthlyUploaded] = useState(false);
+  const [monthlyFileCount, setMonthlyFileCount] = useState(0);
+  const [detectedMonthlyMonths, setDetectedMonthlyMonths] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState("");
 
   const selectedSource = useMemo(
@@ -44,9 +46,22 @@ export default function App() {
     setAdhocUploaded(true);
   };
 
-  const handleMonthlyUpload = () => {
+  const handleMonthlyUpload = ({ fileCount, months } = {}) => {
+    const nextMonths = months?.length ? months : detectedMonthlyMonths.length ? detectedMonthlyMonths : monthOptions;
     setMonthlyUploaded(true);
-    setSelectedMonth("July 2026");
+    setMonthlyFileCount(fileCount || monthlyFileCount || nextMonths.length);
+    setDetectedMonthlyMonths(nextMonths);
+    setSelectedMonth(nextMonths[nextMonths.length - 1] ?? "July 2026");
+  };
+
+  const handleMonthlyFilesReady = ({ fileCount, months }) => {
+    const nextMonths = months?.length ? months : [];
+    setMonthlyFileCount(fileCount);
+    setDetectedMonthlyMonths(nextMonths);
+
+    if (nextMonths.length) {
+      setSelectedMonth(nextMonths[nextMonths.length - 1]);
+    }
   };
 
   return (
@@ -99,7 +114,9 @@ export default function App() {
                     selectedSource={selectedSource}
                     selectedMonth={selectedMonth}
                     onMonthChange={setSelectedMonth}
-                    monthOptions={monthlyUploaded ? monthOptions : []}
+                    monthOptions={detectedMonthlyMonths.length ? detectedMonthlyMonths : monthlyUploaded ? monthOptions : []}
+                    detectedFileCount={monthlyFileCount}
+                    onFilesReady={handleMonthlyFilesReady}
                   />
                 )}
               </div>

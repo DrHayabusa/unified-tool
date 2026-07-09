@@ -39,6 +39,7 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
   const provider = providers.find((item) => item.name === selectedProvider) ?? providers[0];
   const [healthUrl, setHealthUrl] = useState(provider.healthUrl);
   const [connectionState, setConnectionState] = useState({ status: "idle", message: "Not tested yet" });
+  const [reportState, setReportState] = useState({ status: "idle", message: "No report request sent yet" });
   const hasMonths = monthOptions.length > 0 && !monthOptions.includes("No month detected");
   const targetMonth = selectedMonth || (hasMonths ? monthOptions[monthOptions.length - 1] : "");
   const isMonthly = workflow === "monthly";
@@ -48,6 +49,7 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
     setSelectedProvider(nextProvider.name);
     setHealthUrl(nextProvider.healthUrl);
     setConnectionState({ status: "idle", message: "Not tested yet" });
+    setReportState({ status: "idle", message: "No report request sent yet" });
   };
 
   const testConnectivity = async () => {
@@ -78,6 +80,50 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
       });
     } finally {
       window.clearTimeout(timeout);
+    }
+  };
+
+  const generateReport = async () => {
+    if (!targetMonth) {
+      setReportState({ status: "error", message: "Select or detect a PDF target month first." });
+      return;
+    }
+
+    if (!healthUrl) {
+      setReportState({ status: "success", message: `Template report request prepared for ${targetMonth}.` });
+      return;
+    }
+
+    setReportState({ status: "testing", message: "Sending PDF generation request to API server..." });
+
+    try {
+      const generateUrl = new URL(healthUrl);
+      generateUrl.pathname = "/generate/pdf";
+      generateUrl.search = "";
+
+      const response = await fetch(generateUrl.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: selectedProvider,
+          model: provider.model,
+          targetMonth,
+          workflow,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      setReportState({
+        status: response.ok ? "success" : "error",
+        message: response.ok
+          ? payload.message || `PDF generation request accepted for ${targetMonth}.`
+          : payload.error || `PDF request failed with ${response.status}.`,
+      });
+    } catch (error) {
+      setReportState({
+        status: "error",
+        message: "Could not reach PDF generation endpoint. Start the local API server first.",
+      });
     }
   };
 
@@ -178,7 +224,7 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
             <Wifi className="h-4 w-4" />
             Test API Connectivity
           </button>
-          <button type="button" className="neon-button flex items-center justify-center gap-2">
+          <button type="button" onClick={generateReport} className="neon-button flex items-center justify-center gap-2">
             <FileText className="h-4 w-4" />
             Generate AI PDF Report
           </button>
@@ -196,6 +242,20 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
           }`}
         >
           API status: {connectionState.message}
+        </div>
+
+        <div
+          className={`rounded-2xl border px-4 py-3 text-xs font-bold ${
+            reportState.status === "success"
+              ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200"
+              : reportState.status === "error"
+                ? "border-red-300/30 bg-red-400/10 text-red-200"
+                : reportState.status === "testing"
+                  ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-200"
+                  : "border-white/10 bg-white/[0.035] text-slate-400"
+          }`}
+        >
+          PDF status: {reportState.message}
         </div>
       </div>
     </section>
