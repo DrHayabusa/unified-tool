@@ -100,6 +100,7 @@ The key is not stored in localStorage.
 The key is not saved by the app.
 The key stays in the browser memory until the page is refreshed.
 When you click Test API Connectivity, the key is sent to the configured local/backend health endpoint.
+When you click Generate AI PDF Report with NVIDIA selected, the key is sent to the configured backend generate endpoint.
 ```
 
 For production, do not rely on browser-pasted keys. Store keys on the backend.
@@ -141,7 +142,19 @@ Expected result:
 API status: Connected: 200
 ```
 
-The **Generate AI PDF Report** button sends a placeholder request to `/generate/pdf`. The production backend should replace this placeholder endpoint with the real PDF generation pipeline.
+The **Generate AI PDF Report** button sends a request to `/generate/pdf`.
+
+When **NVIDIA NIM** is selected, or when the provider/model/base URL identifies NVIDIA, the backend:
+
+```text
+1. Loads the Remediation Guide prompt contract from docs/AI_PDF_GENERATION_PROMPT.md.
+2. Adds the selected tool source, target month, dashboard summary, and normalized rows.
+3. Sends that strict prompt to NVIDIA.
+4. Receives Remediation Guide Markdown from NVIDIA.
+5. Returns the generated Markdown to the UI/API caller.
+```
+
+The production backend should then render that Markdown into the approved PDF layout.
 
 ## Production Pattern
 

@@ -32,15 +32,26 @@ def load_dotenv(path: Path) -> None:
             os.environ[key] = value
 
 
-def post_chat_completion(base_url: str, api_key: str, model: str, timeout: int) -> dict:
+def post_chat_completion(
+    base_url: str,
+    api_key: str,
+    model: str,
+    timeout: int,
+    messages: list[dict[str, str]] | None = None,
+    temperature: float = 0,
+    max_tokens: int = 16,
+    extra_body: dict | None = None,
+) -> dict:
     endpoint = f"{base_url.rstrip('/')}/chat/completions"
     payload = {
         "model": model,
-        "messages": [{"role": "user", "content": "Reply with OK only."}],
-        "temperature": 0,
-        "max_tokens": 16,
+        "messages": messages or [{"role": "user", "content": "Reply with OK only."}],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
         "stream": False,
     }
+    if extra_body:
+        payload.update(extra_body)
 
     request = urllib.request.Request(
         endpoint,

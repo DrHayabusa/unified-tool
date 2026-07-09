@@ -20,6 +20,7 @@ import os
 HOST = "127.0.0.1"
 PORT = 8000
 ROOT = Path(__file__).resolve().parents[1]
+PROMPT_CONTRACT_PATH = ROOT / "docs" / "AI_PDF_GENERATION_PROMPT.md"
 
 
 class MvaApiHandler(BaseHTTPRequestHandler):
@@ -61,16 +62,7 @@ class MvaApiHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/generate/pdf":
-            self.send_json(
-                {
-                    "ok": True,
-                    "status": "accepted",
-                    "message": "PDF generation request accepted by local API placeholder.",
-                    "provider": payload.get("provider"),
-                    "targetMonth": payload.get("targetMonth"),
-                    "note": "Wire this endpoint to the production PDF builder when backend generation is ready.",
-                }
-            )
+            self.handle_pdf_generation(payload)
             return
 
         if path == "/health/nvidia":
@@ -119,6 +111,95 @@ class MvaApiHandler(BaseHTTPRequestHandler):
                 status=502,
             )
 
+    def handle_pdf_generation(self, payload: dict) -> None:
+        provider = str(payload.get("provider") or "Template Only").strip()
+        target_month = str(payload.get("targetMonth") or "Not provided").strip()
+        provider_is_nvidia = "nvidia" in provider.lower()
+        base_url = (
+            payload.get("baseUrl")
+            or (os.getenv("NVIDIA_BASE_URL", DEFAULT_BASE_URL) if provider_is_nvidia else "")
+        ).strip()
+        model = (
+            payload.get("model")
+            or (os.getenv("NVIDIA_MODEL", DEFAULT_MODEL) if provider_is_nvidia else "")
+        ).strip()
+        api_key = (payload.get("apiKey") or os.getenv("NVIDIA_API_KEY", "")).strip()
+        prompt = build_pdf_generation_prompt(payload)
+
+        if not should_call_nvidia(provider=provider, base_url=base_url, model=model):
+            self.send_json(
+                {
+                    "ok": True,
+                    "status": "accepted",
+                    "message": f"PDF generation request accepted for {target_month}.",
+                    "provider": provider,
+                    "targetMonth": target_month,
+                    "format": "Remediation Guide",
+                    "promptPreview": prompt[:1200],
+                    "note": "Non-NVIDIA providers should use this same prompt contract in the production backend.",
+                }
+            )
+            return
+
+        if not api_key or api_key == "replace_with_your_nvidia_key":
+            self.send_json(
+                {
+                    "ok": False,
+                    "provider": "NVIDIA NIM",
+                    "model": model,
+                    "targetMonth": target_month,
+                    "error": "NVIDIA_API_KEY is not configured. Paste it in the session-only UI field or set it in local .env.",
+                },
+                status=503,
+            )
+            return
+
+        try:
+            result = post_chat_completion(
+                base_url=base_url,
+                api_key=api_key,
+                model=model,
+                timeout=120,
+                temperature=0.2,
+                max_tokens=4096,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are the MVA Remediation Guide generation engine. Return clean Markdown only.",
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    },
+                ],
+            )
+            message = result["body"].get("choices", [{}])[0].get("message", {})
+            ai_markdown = (message.get("content") or "").strip()
+            self.send_json(
+                {
+                    "ok": True,
+                    "status": "generated",
+                    "message": f"NVIDIA generated Remediation Guide Markdown for {target_month}.",
+                    "provider": "NVIDIA NIM",
+                    "model": model,
+                    "targetMonth": target_month,
+                    "format": "Remediation Guide",
+                    "aiMarkdown": ai_markdown,
+                    "note": "Production backend should render aiMarkdown into the approved PDF layout.",
+                }
+            )
+        except Exception as error:  # noqa: BLE001 - API route returns concise diagnostics.
+            self.send_json(
+                {
+                    "ok": False,
+                    "provider": "NVIDIA NIM",
+                    "model": model,
+                    "targetMonth": target_month,
+                    "error": str(error),
+                },
+                status=502,
+            )
+
     def send_json(self, payload: dict, status: int = 200) -> None:
         body = json.dumps(payload, indent=2).encode("utf-8")
         self.send_response(status)
@@ -138,6 +219,83 @@ class MvaApiHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args) -> None:  # noqa: A002 - BaseHTTPRequestHandler API.
         print(f"{self.address_string()} - {format % args}")
+
+
+def should_call_nvidia(provider: str, base_url: str, model: str) -> bool:
+    provider_text = provider.lower()
+    base_url_text = base_url.lower()
+    model_text = model.lower()
+    if "template" in provider_text:
+        return False
+    return (
+        "nvidia" in provider_text
+        or "integrate.api.nvidia.com" in base_url_text
+        or model_text.startswith("nvidia/")
+    )
+
+
+def build_pdf_generation_prompt(payload: dict) -> str:
+    target_month = payload.get("targetMonth") or "Not provided"
+    source_tool = payload.get("sourceTool") or payload.get("toolSource") or payload.get("providerSource") or "Selected source from MVA UI"
+    workflow = payload.get("workflow") or "monthly"
+    normalized_rows = payload.get("normalizedRows") or payload.get("findings") or []
+    dashboard_summary = payload.get("dashboardSummary") or {}
+    prompt_contract = load_prompt_contract()
+
+    return f"""Use the following MVA Remediation Guide PDF contract exactly.
+
+{prompt_contract}
+
+Current request context:
+- Report Name: Remediation Guide
+- Report Type: Remediation
+- Tool Source: {source_tool}
+- Reporting Date / Month: {target_month}
+- Workflow: {workflow}
+- Output required from you: Markdown only, ready for the backend PDF renderer.
+
+Formatting requirements for the PDF renderer:
+- The final PDF title must be "Remediation Guide".
+- Include a clean Contents section.
+- Do not include customer name.
+- Do not include "created by".
+- Do not say "prepared from normalized KB links" or similar internal wording.
+- Use professional customer-facing language.
+- Each vulnerability section must include affected asset, CVE, reference links, remediation steps, commands, and validation.
+- Commands must be inside fenced code blocks with a language tag such as bash, powershell, or sql.
+- If exact commands are not supported by the provided data, write safe generic validation commands and clearly mark placeholders.
+
+Dashboard summary from MVA:
+{json.dumps(dashboard_summary, indent=2)}
+
+Normalized vulnerability rows from MVA:
+{json.dumps(normalized_rows[:50], indent=2)}
+
+If fewer rows are provided, generate the guide from the available rows only.
+If no rows are provided, return the Remediation Guide structure with clear placeholders and state that normalized findings were not provided.
+"""
+
+
+def load_prompt_contract() -> str:
+    if PROMPT_CONTRACT_PATH.exists():
+        return PROMPT_CONTRACT_PATH.read_text(encoding="utf-8")
+    return """# Remediation Guide
+
+## Contents
+
+| Field | Value |
+|---|---|
+| Report Type | Remediation |
+| Tool Source | <selected tool source from the agent> |
+| Reporting Date | <selected reporting date> |
+| Document Type | Remediation Guide |
+
+## 1. Executive Overview
+## 2. Remediation Method
+## 3. Remediation Actions
+## 4. Validation Requirements
+## 5. Reference Appendix
+"""
 
 
 def main() -> int:
