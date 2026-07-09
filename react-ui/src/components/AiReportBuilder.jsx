@@ -71,7 +71,7 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
     setConnectionState({ status: "testing", message: "Testing API server..." });
 
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 6000);
+    const timeout = window.setTimeout(() => controller.abort(), 45000);
 
     try {
       const hasSessionOverride = Boolean(sessionApiKey.trim() || providerBaseUrl.trim() || providerModel.trim() !== provider.model);
@@ -88,15 +88,23 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
           : undefined,
         signal: controller.signal,
       });
+      const payload = await response.json().catch(() => ({}));
 
       setConnectionState({
         status: response.ok ? "success" : "error",
-        message: response.ok ? `Connected: ${response.status}` : `Server responded with ${response.status}`,
+        message: response.ok
+          ? payload.response
+            ? `Connected: ${payload.provider || selectedProvider} returned "${payload.response}".`
+            : `Connected: ${response.status}`
+          : payload.error || payload.message || `Server responded with ${response.status}`,
       });
     } catch (error) {
+      const isAbort = error?.name === "AbortError";
       setConnectionState({
         status: "error",
-        message: "Could not reach API server. Check URL, CORS, VPN, and whether the backend is running.",
+        message: isAbort
+          ? "API test timed out after 45 seconds. The server may be busy or the provider request is slow."
+          : "Could not reach API server. Start `./run-local-api.sh`; if using GitHub Pages, restart it so the Private Network CORS header is active.",
       });
     } finally {
       window.clearTimeout(timeout);

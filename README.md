@@ -104,6 +104,22 @@ Sample upload files and reference Excel/PDF outputs are listed in:
 SAMPLE_DATA.md
 ```
 
+## Complete Recreate Handover
+
+The granular build notes, architecture, field mappings, dashboard formulas, AI provider flow, cloud deployment notes, validation checklist, and rebuild prompt are documented here:
+
+```text
+docs/COMPLETE_RECREATE_HANDOVER.md
+```
+
+For cloud-only testing, deploy an API backend and paste that backend health endpoint into the UI, for example:
+
+```text
+https://your-mva-api.example.com/health/nvidia
+```
+
+Do not use `127.0.0.1` from GitHub Pages unless you are intentionally testing a backend running on your own laptop.
+
 ## MVA Report Schema
 
 The first production version will prioritize these fields:

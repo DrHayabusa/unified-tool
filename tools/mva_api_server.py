@@ -131,7 +131,10 @@ class MvaApiHandler(BaseHTTPRequestHandler):
     def send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        # Required when the GitHub Pages HTTPS frontend calls this localhost API.
+        self.send_header("Access-Control-Allow-Private-Network", "true")
+        self.send_header("Access-Control-Max-Age", "600")
 
     def log_message(self, format: str, *args) -> None:  # noqa: A002 - BaseHTTPRequestHandler API.
         print(f"{self.address_string()} - {format % args}")
