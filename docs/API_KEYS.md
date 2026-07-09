@@ -10,52 +10,16 @@ No.
 
 The repository was scanned before publishing. No real NVIDIA key was committed to the repo.
 
-## Where to Put Keys Locally
+## Where to Put Keys
 
-Use a private `.env` file on the machine that runs the backend or PDF generation service.
+For production, put the NVIDIA key on the cloud backend that generates the PDF.
 
-From the repo root:
-
-```bash
-cd "/Users/mohammedshahid/Documents/New project/unified-tool"
-cp .env.example .env
-```
-
-Then edit `.env` and paste the key there:
+Example backend environment:
 
 ```text
-NVIDIA_API_KEY=your_real_key_here
+NVIDIA_API_KEY=<your key>
 NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 NVIDIA_MODEL=nvidia/nemotron-3-ultra-550b-a55b
-```
-
-The `.gitignore` file excludes `.env` and `.env.*`, so real keys stay local.
-
-## Temporary Terminal Test
-
-For a one-time local test without writing a file:
-
-```bash
-export NVIDIA_API_KEY="your_real_key_here"
-```
-
-Then run the backend/report script that needs the key from the same terminal session.
-
-## NVIDIA Connectivity Test
-
-After adding your key to `.env`, run:
-
-```bash
-cd "/Users/mohammedshahid/Documents/New project/unified-tool"
-python3 tools/test_nvidia_connectivity.py
-```
-
-Expected success output:
-
-```text
-SUCCESS: NVIDIA API connectivity test passed.
-HTTP status: 200
-Model: nvidia/nemotron-3-ultra-550b-a55b
 ```
 
 If you receive `401 Unauthorized`, the key is wrong, expired, copied with an extra space, or not authorized for the selected NVIDIA model.
@@ -67,8 +31,7 @@ The deployed UI has a **Test API Connectivity** button in the AI PDF panel.
 That button tests your backend health endpoint, for example:
 
 ```text
-http://127.0.0.1:8000/health
-https://your-internal-mva-api.company.local/health
+https://your-mva-api.example.com/health/nvidia
 ```
 
 It does not send the NVIDIA key from the browser. The backend must hold the key and expose a safe health endpoint.
@@ -83,7 +46,7 @@ Provider Base URL
 Model
 ```
 
-Use this for quick testing when you do not want to edit `.env`.
+Use this for quick testing from the browser session.
 
 Example NVIDIA values:
 
@@ -99,47 +62,18 @@ The key is not committed to GitHub.
 The key is not stored in localStorage.
 The key is not saved by the app.
 The key stays in the browser memory until the page is refreshed.
-When you click Test API Connectivity, the key is sent to the configured local/backend health endpoint.
+When you click Test API Connectivity, the key is sent to the configured backend health endpoint.
 When you click Generate AI PDF Report with NVIDIA selected, the key is sent to the configured backend generate endpoint.
 ```
 
 For production, do not rely on browser-pasted keys. Store keys on the backend.
 
-## Run the Local API Server for UI Testing
+## Cloud API URL to Paste in the UI
 
-Start this in a separate Terminal window:
-
-```bash
-cd "/Users/mohammedshahid/Documents/New project/unified-tool"
-./run-local-api.sh
-```
-
-The local API server exposes:
+Use your deployed MVA backend URL:
 
 ```text
-http://127.0.0.1:8000/health
-http://127.0.0.1:8000/health/nvidia
-http://127.0.0.1:8000/generate/pdf
-```
-
-Then open the deployed UI:
-
-```text
-https://drhayabusa.github.io/unified-tool/
-```
-
-Select **NVIDIA NIM**, keep the health URL as:
-
-```text
-http://127.0.0.1:8000/health/nvidia
-```
-
-Click **Test API Connectivity**.
-
-Expected result:
-
-```text
-API status: Connected: 200
+https://your-mva-api.example.com/health/nvidia
 ```
 
 The **Generate AI PDF Report** button sends a request to `/generate/pdf`.

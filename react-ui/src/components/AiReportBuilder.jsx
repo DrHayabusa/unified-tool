@@ -3,32 +3,40 @@ import { AlertTriangle, Bot, ChevronDown, FileText, ServerCog, Wifi } from "luci
 
 const providers = [
   {
-    name: "Local AI Server",
-    helper: "Recommended for production. Keeps keys on your internal server.",
-    model: "Internal MVA PDF agent",
-    baseUrl: "",
-    healthUrl: "http://127.0.0.1:8000/health",
-  },
-  {
     name: "NVIDIA NIM",
-    helper: "Use through backend only. Do not expose NVIDIA_API_KEY in browser code.",
+    helper: "NVIDIA-hosted model through your MVA backend.",
     model: "nvidia/nemotron-3-ultra-550b-a55b",
     baseUrl: "https://integrate.api.nvidia.com/v1",
-    healthUrl: "http://127.0.0.1:8000/health/nvidia",
+    healthUrl: "",
+    backendPath: "/health/nvidia",
+    requiresBackend: true,
+  },
+  {
+    name: "MVA Cloud API",
+    helper: "Your internal backend keeps keys server-side.",
+    model: "Internal MVA PDF agent",
+    baseUrl: "",
+    healthUrl: "",
+    backendPath: "/health",
+    requiresBackend: true,
   },
   {
     name: "Groq",
-    helper: "Optional backend provider route.",
+    helper: "Groq route through your MVA backend.",
     model: "Backend configured model",
     baseUrl: "",
-    healthUrl: "http://127.0.0.1:8000/health/groq",
+    healthUrl: "",
+    backendPath: "/health/groq",
+    requiresBackend: true,
   },
   {
     name: "OpenRouter",
     helper: "Optional backend provider route.",
     model: "Backend configured model",
     baseUrl: "",
-    healthUrl: "http://127.0.0.1:8000/health/openrouter",
+    healthUrl: "",
+    backendPath: "/health/openrouter",
+    requiresBackend: true,
   },
   {
     name: "Template Only",
@@ -36,8 +44,15 @@ const providers = [
     model: "No external model",
     baseUrl: "",
     healthUrl: "",
+    backendPath: "",
+    requiresBackend: false,
   },
 ];
+
+const isTemplateProvider = (providerName) => providerName === "Template Only";
+
+const backendUrlPlaceholder = (provider) =>
+  provider.backendPath ? `https://your-mva-api.example.com${provider.backendPath}` : "https://your-mva-api.example.com/health";
 
 export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [], compact = false, workflow = "adhoc" }) {
   const [selectedProvider, setSelectedProvider] = useState(providers[0].name);
@@ -64,7 +79,12 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
 
   const testConnectivity = async () => {
     if (!healthUrl) {
-      setConnectionState({ status: "warn", message: "Template mode does not require an API server." });
+      setConnectionState({
+        status: isTemplateProvider(selectedProvider) ? "warn" : "error",
+        message: isTemplateProvider(selectedProvider)
+          ? "Template mode does not require an API server."
+          : `Paste your MVA backend health URL, for example ${backendUrlPlaceholder(provider)}.`,
+      });
       return;
     }
 
@@ -104,7 +124,7 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
         status: "error",
         message: isAbort
           ? "API test timed out after 45 seconds. The server may be busy or the provider request is slow."
-          : "Could not reach API server. Start `./run-local-api.sh`; if using GitHub Pages, restart it so the Private Network CORS header is active.",
+          : "Could not reach the MVA backend. Check the backend URL, CORS policy, VPN, and API gateway routing.",
       });
     } finally {
       window.clearTimeout(timeout);
@@ -118,7 +138,12 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
     }
 
     if (!healthUrl) {
-      setReportState({ status: "success", message: `Template report request prepared for ${targetMonth}.` });
+      setReportState({
+        status: isTemplateProvider(selectedProvider) ? "success" : "error",
+        message: isTemplateProvider(selectedProvider)
+          ? `Template report request prepared for ${targetMonth}.`
+          : `Paste your MVA backend health URL before generating the PDF, for example ${backendUrlPlaceholder(provider)}.`,
+      });
       return;
     }
 
@@ -152,7 +177,7 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
     } catch (error) {
       setReportState({
         status: "error",
-        message: "Could not reach PDF generation endpoint. Start the local API server first.",
+        message: "Could not reach PDF generation endpoint. Check the deployed backend URL, CORS policy, VPN, and API gateway routing.",
       });
     }
   };
@@ -191,7 +216,7 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
           <div>
             <p className="text-sm font-black text-white">Session provider settings</p>
             <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
-              Paste an API key or base URL here for local testing. These values stay in this browser session and are not saved to GitHub.
+              Paste an API key or provider base URL here only for this session. The API server URL below must point to your MVA backend.
             </p>
           </div>
 
@@ -236,7 +261,7 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
           <p className="text-sm font-semibold leading-6 text-slate-400">
             {isMonthly
               ? "Select the PDF target month, test backend connectivity, then generate the Remediation Guide through the AI server."
-              : "After upload, use the selected AI provider or local AI server to generate the Remediation Guide PDF."}
+              : "After upload, use the selected AI provider through your MVA backend to generate the Remediation Guide PDF."}
           </p>
         </div>
 
@@ -264,15 +289,18 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
           <input
             value={healthUrl}
             onChange={(event) => setHealthUrl(event.target.value)}
-            placeholder="https://your-mva-api.example.com/health"
+            placeholder={backendUrlPlaceholder(provider)}
             className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-xs font-bold text-slate-100 outline-none"
           />
+          <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+            This must be your deployed MVA backend endpoint, not the NVIDIA provider URL. The backend then calls NVIDIA securely.
+          </p>
         </label>
 
         <div className="rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4">
           <p className="flex items-start gap-2 text-xs font-semibold leading-5 text-amber-100">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            For production, keep API keys on the backend or in local `.env`. Session-pasted keys are only for local testing and are sent to the configured API server endpoint when you click test/generate.
+            Best practice: keep API keys on the backend. Session-pasted keys are for quick testing and are sent only to the configured MVA backend when you click test/generate.
           </p>
         </div>
 
