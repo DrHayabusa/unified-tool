@@ -6,30 +6,35 @@ const providers = [
     name: "Local AI Server",
     helper: "Recommended for production. Keeps keys on your internal server.",
     model: "Internal MVA PDF agent",
+    baseUrl: "",
     healthUrl: "http://127.0.0.1:8000/health",
   },
   {
     name: "NVIDIA NIM",
     helper: "Use through backend only. Do not expose NVIDIA_API_KEY in browser code.",
     model: "nvidia/nemotron-3-ultra-550b-a55b",
+    baseUrl: "https://integrate.api.nvidia.com/v1",
     healthUrl: "http://127.0.0.1:8000/health/nvidia",
   },
   {
     name: "Groq",
     helper: "Optional backend provider route.",
     model: "Backend configured model",
+    baseUrl: "",
     healthUrl: "http://127.0.0.1:8000/health/groq",
   },
   {
     name: "OpenRouter",
     helper: "Optional backend provider route.",
     model: "Backend configured model",
+    baseUrl: "",
     healthUrl: "http://127.0.0.1:8000/health/openrouter",
   },
   {
     name: "Template Only",
     helper: "Generate without AI provider calls.",
     model: "No external model",
+    baseUrl: "",
     healthUrl: "",
   },
 ];
@@ -38,6 +43,9 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
   const [selectedProvider, setSelectedProvider] = useState(providers[0].name);
   const provider = providers.find((item) => item.name === selectedProvider) ?? providers[0];
   const [healthUrl, setHealthUrl] = useState(provider.healthUrl);
+  const [sessionApiKey, setSessionApiKey] = useState("");
+  const [providerBaseUrl, setProviderBaseUrl] = useState(provider.baseUrl);
+  const [providerModel, setProviderModel] = useState(provider.model);
   const [connectionState, setConnectionState] = useState({ status: "idle", message: "Not tested yet" });
   const [reportState, setReportState] = useState({ status: "idle", message: "No report request sent yet" });
   const hasMonths = monthOptions.length > 0 && !monthOptions.includes("No month detected");
@@ -48,6 +56,8 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
     const nextProvider = providers.find((item) => item.name === event.target.value) ?? providers[0];
     setSelectedProvider(nextProvider.name);
     setHealthUrl(nextProvider.healthUrl);
+    setProviderBaseUrl(nextProvider.baseUrl);
+    setProviderModel(nextProvider.model);
     setConnectionState({ status: "idle", message: "Not tested yet" });
     setReportState({ status: "idle", message: "No report request sent yet" });
   };
@@ -64,8 +74,18 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
     const timeout = window.setTimeout(() => controller.abort(), 6000);
 
     try {
+      const hasSessionOverride = Boolean(sessionApiKey.trim() || providerBaseUrl.trim() || providerModel.trim() !== provider.model);
       const response = await fetch(healthUrl, {
-        method: "GET",
+        method: hasSessionOverride ? "POST" : "GET",
+        headers: hasSessionOverride ? { "Content-Type": "application/json" } : undefined,
+        body: hasSessionOverride
+          ? JSON.stringify({
+              provider: selectedProvider,
+              apiKey: sessionApiKey.trim(),
+              baseUrl: providerBaseUrl.trim(),
+              model: providerModel.trim(),
+            })
+          : undefined,
         signal: controller.signal,
       });
 
@@ -106,7 +126,9 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           provider: selectedProvider,
-          model: provider.model,
+          model: providerModel,
+          apiKey: sessionApiKey.trim(),
+          baseUrl: providerBaseUrl.trim(),
           targetMonth,
           workflow,
         }),
@@ -153,9 +175,50 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
           </div>
           <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-            Model route: <span className="text-cyan-200">{provider.model}</span>
+            Model route: <span className="text-cyan-200">{providerModel}</span>
           </p>
         </label>
+
+        <div className="grid gap-4 rounded-2xl border border-cyan-300/15 bg-cyan-400/5 p-4">
+          <div>
+            <p className="text-sm font-black text-white">Session provider settings</p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
+              Paste an API key or base URL here for local testing. These values stay in this browser session and are not saved to GitHub.
+            </p>
+          </div>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-slate-400">API Key (session only)</span>
+            <input
+              type="password"
+              value={sessionApiKey}
+              onChange={(event) => setSessionApiKey(event.target.value)}
+              placeholder="Paste provider API key for this browser session"
+              autoComplete="off"
+              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-xs font-bold text-slate-100 outline-none"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-slate-400">Provider Base URL</span>
+            <input
+              value={providerBaseUrl}
+              onChange={(event) => setProviderBaseUrl(event.target.value)}
+              placeholder="https://integrate.api.nvidia.com/v1"
+              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-xs font-bold text-slate-100 outline-none"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-slate-400">Model</span>
+            <input
+              value={providerModel}
+              onChange={(event) => setProviderModel(event.target.value)}
+              placeholder="nvidia/nemotron-3-ultra-550b-a55b"
+              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-xs font-bold text-slate-100 outline-none"
+            />
+          </label>
+        </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
           <p className="mb-3 flex items-center gap-2 text-sm font-black text-white">
@@ -201,7 +264,7 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
         <div className="rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4">
           <p className="flex items-start gap-2 text-xs font-semibold leading-5 text-amber-100">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            API keys must stay on the backend or in local `.env`. Do not hard-code provider keys into this public GitHub Pages frontend.
+            For production, keep API keys on the backend or in local `.env`. Session-pasted keys are only for local testing and are sent to the configured API server endpoint when you click test/generate.
           </p>
         </div>
 

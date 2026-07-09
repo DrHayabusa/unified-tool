@@ -73,12 +73,17 @@ class MvaApiHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/health/nvidia":
+            self.handle_nvidia_health(payload)
+            return
+
         self.send_json({"ok": False, "error": "Not found"}, status=404)
 
-    def handle_nvidia_health(self) -> None:
-        api_key = os.getenv("NVIDIA_API_KEY", "").strip()
-        base_url = os.getenv("NVIDIA_BASE_URL", DEFAULT_BASE_URL)
-        model = os.getenv("NVIDIA_MODEL", DEFAULT_MODEL)
+    def handle_nvidia_health(self, payload: dict | None = None) -> None:
+        payload = payload or {}
+        api_key = (payload.get("apiKey") or os.getenv("NVIDIA_API_KEY", "")).strip()
+        base_url = (payload.get("baseUrl") or os.getenv("NVIDIA_BASE_URL", DEFAULT_BASE_URL)).strip()
+        model = (payload.get("model") or os.getenv("NVIDIA_MODEL", DEFAULT_MODEL)).strip()
 
         if not api_key or api_key == "replace_with_your_nvidia_key":
             self.send_json(

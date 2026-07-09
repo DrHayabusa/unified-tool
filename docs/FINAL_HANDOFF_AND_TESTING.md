@@ -167,6 +167,23 @@ http://127.0.0.1:8000/generate/pdf
 
 That endpoint confirms the UI/backend handoff works. The next production step is wiring this endpoint to the actual PDF builder and AI prompt pipeline.
 
+The UI also has session-only credential fields:
+
+```text
+API Key (session only)
+Provider Base URL
+Model
+```
+
+For NVIDIA testing:
+
+```text
+Provider Base URL: https://integrate.api.nvidia.com/v1
+Model: nvidia/nemotron-3-ultra-550b-a55b
+```
+
+Session-pasted keys are not saved or committed. Refreshing the page clears them. For production, keep keys on the backend.
+
 ## Sample Data for Testing
 
 Use these files to test the app and backend logic.

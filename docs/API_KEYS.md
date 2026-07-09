@@ -73,6 +73,37 @@ https://your-internal-mva-api.company.local/health
 
 It does not send the NVIDIA key from the browser. The backend must hold the key and expose a safe health endpoint.
 
+## Session-Only Paste Option in the UI
+
+The AI PDF panel also includes:
+
+```text
+API Key (session only)
+Provider Base URL
+Model
+```
+
+Use this for quick testing when you do not want to edit `.env`.
+
+Example NVIDIA values:
+
+```text
+Provider Base URL: https://integrate.api.nvidia.com/v1
+Model: nvidia/nemotron-3-ultra-550b-a55b
+```
+
+Important behavior:
+
+```text
+The key is not committed to GitHub.
+The key is not stored in localStorage.
+The key is not saved by the app.
+The key stays in the browser memory until the page is refreshed.
+When you click Test API Connectivity, the key is sent to the configured local/backend health endpoint.
+```
+
+For production, do not rely on browser-pasted keys. Store keys on the backend.
+
 ## Run the Local API Server for UI Testing
 
 Start this in a separate Terminal window:
