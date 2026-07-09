@@ -98,15 +98,18 @@ export function MonthlyComparison({ uploaded, onUpload, selectedSource, selected
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={selectedMonth}
-            onChange={(event) => onMonthChange(event.target.value)}
-            className="rounded-xl border border-white/10 bg-slate-900 px-3 py-3 text-sm font-bold text-slate-200 outline-none"
-          >
-            {monthOptions.map((month) => (
-              <option key={month}>{month}</option>
-            ))}
-          </select>
+          <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2">
+            <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">PDF Month</span>
+            <select
+              value={selectedMonth}
+              onChange={(event) => onMonthChange(event.target.value)}
+              className="bg-transparent py-1 text-sm font-bold text-slate-200 outline-none"
+            >
+              {monthOptions.map((month) => (
+                <option key={month}>{month}</option>
+              ))}
+            </select>
+          </label>
           <button type="button" className="ghost-button flex items-center gap-2 py-3">
             <Download className="h-4 w-4" />
             Download Excel
@@ -176,7 +179,7 @@ export function MonthlyComparison({ uploaded, onUpload, selectedSource, selected
           </div>
         </article>
 
-        <AiReportBuilder selectedMonth={selectedMonth} onMonthChange={onMonthChange} monthOptions={monthOptions} />
+        <AiReportBuilder selectedMonth={selectedMonth} onMonthChange={onMonthChange} monthOptions={monthOptions} workflow="monthly" />
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2 border-b border-white/10">

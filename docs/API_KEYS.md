@@ -26,7 +26,7 @@ Then edit `.env` and paste the key there:
 ```text
 NVIDIA_API_KEY=your_real_key_here
 NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-NVIDIA_MODEL=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+NVIDIA_MODEL=nvidia/nemotron-3-ultra-550b-a55b
 ```
 
 The `.gitignore` file excludes `.env` and `.env.*`, so real keys stay local.
@@ -40,6 +40,38 @@ export NVIDIA_API_KEY="your_real_key_here"
 ```
 
 Then run the backend/report script that needs the key from the same terminal session.
+
+## NVIDIA Connectivity Test
+
+After adding your key to `.env`, run:
+
+```bash
+cd "/Users/mohammedshahid/Documents/New project/unified-tool"
+python3 tools/test_nvidia_connectivity.py
+```
+
+Expected success output:
+
+```text
+SUCCESS: NVIDIA API connectivity test passed.
+HTTP status: 200
+Model: nvidia/nemotron-3-ultra-550b-a55b
+```
+
+If you receive `401 Unauthorized`, the key is wrong, expired, copied with an extra space, or not authorized for the selected NVIDIA model.
+
+## Frontend Connectivity Test Button
+
+The deployed UI has a **Test API Connectivity** button in the AI PDF panel.
+
+That button tests your backend health endpoint, for example:
+
+```text
+http://127.0.0.1:8000/health
+https://your-internal-mva-api.company.local/health
+```
+
+It does not send the NVIDIA key from the browser. The backend must hold the key and expose a safe health endpoint.
 
 ## Production Pattern
 

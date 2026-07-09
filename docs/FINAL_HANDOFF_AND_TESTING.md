@@ -130,6 +130,15 @@ NVIDIA_MODEL=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
 
 The `.gitignore` file ignores real `.env` files.
 
+NVIDIA connectivity can be tested locally with:
+
+```bash
+cd "/Users/mohammedshahid/Documents/New project/unified-tool"
+python3 tools/test_nvidia_connectivity.py
+```
+
+The deployed UI also has a **Test API Connectivity** button in the AI PDF panel. That button is for testing your backend health endpoint. It does not expose or send provider API keys from the browser.
+
 ## Sample Data for Testing
 
 Use these files to test the app and backend logic.
