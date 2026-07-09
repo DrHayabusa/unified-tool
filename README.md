@@ -112,6 +112,12 @@ The granular build notes, architecture, field mappings, dashboard formulas, AI p
 docs/COMPLETE_RECREATE_HANDOVER.md
 ```
 
+The focused architecture, stack, deployment, security, and production-readiness handover is documented here:
+
+```text
+docs/ARCHITECTURE_AND_STACK.md
+```
+
 For cloud-only testing, deploy an API backend and paste that backend health endpoint into the UI, for example:
 
 ```text
