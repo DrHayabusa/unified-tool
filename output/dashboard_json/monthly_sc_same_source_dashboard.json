@@ -1,0 +1,77 @@
+{
+  "trend_discovered_last_3_months": [
+    {
+      "month": "May 2026",
+      "discovered_count": 26
+    },
+    {
+      "month": "June 2026",
+      "discovered_count": 17
+    },
+    {
+      "month": "July 2026",
+      "discovered_count": 25
+    }
+  ],
+  "trend_remediated_last_3_months": [
+    {
+      "month": "May 2026",
+      "remediated_count": 20
+    },
+    {
+      "month": "June 2026",
+      "remediated_count": 30
+    },
+    {
+      "month": "July 2026",
+      "remediated_count": 25
+    }
+  ],
+  "total_open_vulnerabilities": {
+    "total_open": 125,
+    "new_vulnerabilities": 30,
+    "not_closed_from_previous_months": 95
+  },
+  "total_open_by_patch_priority": {
+    "P1": 41,
+    "P2": 31,
+    "P3": 26,
+    "P4": 27
+  },
+  "total_open_by_age_and_patch_priority": {
+    "P1": {
+      ">7 days": 41,
+      ">30 days": 34,
+      ">60 days": 27,
+      ">180 days (6+ months)": 6
+    },
+    "P2": {
+      ">7 days": 29,
+      ">30 days": 26,
+      ">60 days": 21,
+      ">180 days (6+ months)": 5
+    },
+    "P3": {
+      ">7 days": 26,
+      ">30 days": 19,
+      ">60 days": 16,
+      ">180 days (6+ months)": 2
+    },
+    "P4": {
+      ">7 days": 27,
+      ">30 days": 21,
+      ">60 days": 19,
+      ">180 days (6+ months)": 5
+    }
+  },
+  "total_vulnerabilities_patched_last_month": {
+    "previous_month": "June 2026",
+    "current_month": "July 2026",
+    "previous_month_open": 120,
+    "new_vulnerabilities_identified_this_month": 30,
+    "current_month_open": 125,
+    "patched_count": 25,
+    "patched_count_by_key_diff": 25,
+    "formula": "previous_month_open + new_vulnerabilities_identified_this_month - current_month_open"
+  }
+}

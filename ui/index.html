@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MVA Unified Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" role="img">
+              <path class="shield" d="M32 5 53 13v16c0 14-8.6 24.8-21 30C19.6 53.8 11 43 11 29V13L32 5Z" />
+              <path class="bug" d="M24 27c0-4.4 3.6-8 8-8s8 3.6 8 8v10c0 4.4-3.6 8-8 8s-8-3.6-8-8V27Z" />
+              <path class="radar" d="M18 25c4-9 16-13 26-6M17 39c5 9 18 12 28 4" />
+              <path class="legs" d="M23 31h-7M23 38h-6M41 31h7M41 38h6M28 20l-3-5M36 20l3-5" />
+            </svg>
+          </div>
+          <div>
+            <strong>MVA</strong>
+            <span>Unified Agent</span>
+          </div>
+        </div>
+
+        <nav class="nav-list" aria-label="Primary">
+          <a class="active" href="#dashboard">Dashboard</a>
+          <a href="#source">Source Setup</a>
+          <a href="#upload">Upload</a>
+          <a href="#matrix">Priority Matrix</a>
+          <a href="#queue">Remediation Queue</a>
+          <a href="#reports">Reports</a>
+          <a href="#ai">AI Provider</a>
+          <a href="#settings">Settings</a>
+        </nav>
+
+        <div class="side-panel">
+          <span class="mini-label">Agent Flow</span>
+          <ol>
+            <li>Select source tool</li>
+            <li>Upload export</li>
+            <li>Pick summary date</li>
+            <li>Generate guide</li>
+          </ol>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div class="top-copy">
+            <span class="eyebrow">MVA Command Center</span>
+            <h1>MVA Unified Agent</h1>
+            <p>Unified vulnerability intake, normalization, remediation queue, and AI Remediation Guide generation.</p>
+            <div class="hero-chips" aria-label="Platform capabilities">
+              <span>Dark ops console</span>
+              <span>No database mode</span>
+              <span>AI-server PDF handoff</span>
+            </div>
+            <div class="top-actions">
+              <button class="ghost-button">Preview Guide</button>
+              <button class="primary-button">Generate Remediation Guide</button>
+            </div>
+          </div>
+          <div class="threat-map" aria-label="Exposure radar preview">
+            <div class="radar-header">
+              <div>
+                <span class="mini-label">Live Preview</span>
+                <strong>Exposure Radar</strong>
+              </div>
+              <span class="pulse-dot">Active</span>
+            </div>
+            <div class="radar-stage">
+              <span class="ring ring-one"></span>
+              <span class="ring ring-two"></span>
+              <span class="ring ring-three"></span>
+              <span class="radar-sweep"></span>
+              <span class="node node-critical"></span>
+              <span class="node node-high"></span>
+              <span class="node node-medium"></span>
+              <span class="node node-low"></span>
+              <strong class="radar-core">MVA</strong>
+            </div>
+            <div class="radar-stats">
+              <div><span>Target</span><strong>10.20.1.234</strong></div>
+              <div><span>Priority</span><strong>P1</strong></div>
+              <div><span>Exposure</span><strong>920/1000</strong></div>
+            </div>
+          </div>
+        </header>
+
+        <section class="hero-grid" id="source">
+          <article class="panel source-panel">
+            <div class="panel-head">
+              <div>
+                <span class="mini-label">Step 01</span>
+                <h2>Source Tool</h2>
+              </div>
+              <span class="status-pill" id="selectedSourcePill">Tenable.sc selected</span>
+            </div>
+
+            <div class="source-grid" role="list" aria-label="Source tool choices">
+              <button class="source-card active" data-source="Tenable.sc" data-format="SC CSV">
+                <span>Tenable.sc</span>
+                <small>Security Center export</small>
+              </button>
+              <button class="source-card" data-source="Tenable.io" data-format="IO CSV">
+                <span>Tenable.io</span>
+                <small>Dot notation VM export</small>
+              </button>
+              <button class="source-card" data-source="MDVM" data-format="CSV or XLSX">
+                <span>MDVM</span>
+                <small>Microsoft Defender VM</small>
+              </button>
+              <button class="source-card" data-source="CrowdStrike" data-format="CSV or XLSX">
+                <span>CrowdStrike</span>
+                <small>Exposure Management</small>
+              </button>
+              <button class="source-card" data-source="Qualys" data-format="CSV or XLSX">
+                <span>Qualys</span>
+                <small>VMDR findings export</small>
+              </button>
+              <button class="source-card" data-source="Custom CSV" data-format="Mapped CSV">
+                <span>Custom CSV</span>
+                <small>Manual field mapping</small>
+              </button>
+            </div>
+          </article>
+
+          <article class="panel upload-panel" id="upload">
+            <div class="panel-head">
+              <div>
+                <span class="mini-label">Step 02</span>
+                <h2>Upload Export</h2>
+              </div>
+              <span class="format-pill" id="formatPill">SC CSV</span>
+            </div>
+            <div class="drop-zone">
+              <div class="drop-icon">+</div>
+              <strong>Drop source export here</strong>
+              <span>CSV and XLSX now. API connectors later.</span>
+            </div>
+            <div class="upload-meta">
+              <span>Local parse</span>
+              <span>80k+ row ready</span>
+              <span>No database required</span>
+            </div>
+          </article>
+        </section>
+
+        <section class="date-strip">
+          <div>
+            <span class="mini-label">Step 03</span>
+            <strong>Select summary date</strong>
+            <p>The AI request will summarize only the selected reporting window.</p>
+          </div>
+          <label>
+            Reporting date
+            <input id="summaryDate" type="month" value="2026-07" />
+          </label>
+          <div class="request-chip">
+            AI PDF request: <strong id="requestSource">Tenable.sc</strong>
+          </div>
+        </section>
+
+        <section class="kpi-grid" id="dashboard">
+          <article class="kpi-card">
+            <span>Total Open</span>
+            <strong>12</strong>
+            <small>Current reporting window</small>
+          </article>
+          <article class="kpi-card critical">
+            <span>Critical</span>
+            <strong>3</strong>
+            <small>P1/P2 candidate review</small>
+          </article>
+          <article class="kpi-card high">
+            <span>High</span>
+            <strong>5</strong>
+            <small>Exploit-aware triage</small>
+          </article>
+          <article class="kpi-card medium">
+            <span>Medium</span>
+            <strong>3</strong>
+            <small>Planned remediation</small>
+          </article>
+          <article class="kpi-card patch">
+            <span>Immediate Patch</span>
+            <strong>6</strong>
+            <small>P1 and high-exposure P2</small>
+          </article>
+        </section>
+
+        <section class="content-grid">
+          <article class="panel mapping-panel">
+            <div class="panel-head">
+              <div>
+                <span class="mini-label">Normalization</span>
+                <h2><span id="mappingSource">Tenable.sc</span> fields mapped</h2>
+              </div>
+            </div>
+            <div class="mapping-table">
+              <div><span>IP Address</span><strong id="mapIp">IP Address</strong></div>
+              <div><span>DNS Name</span><strong id="mapDns">DNS Name / NetBIOS Name</strong></div>
+              <div><span>Vulnerability Name</span><strong id="mapName">Plugin Name</strong></div>
+              <div><span>CVE</span><strong id="mapCve">CVE</strong></div>
+              <div><span>Exploit Availability</span><strong id="mapExploit">Exploit?</strong></div>
+              <div><span>Remediation</span><strong id="mapRemediation">Steps to Remediate</strong></div>
+            </div>
+          </article>
+
+          <article class="panel matrix-panel" id="matrix">
+            <div class="panel-head">
+              <div>
+                <span class="mini-label">Priority Logic</span>
+                <h2>Exploit Availability Matrix</h2>
+              </div>
+            </div>
+            <div class="matrix">
+              <div class="cell header">Exploit</div>
+              <div class="cell header sev-critical">Critical</div>
+              <div class="cell header sev-high">High</div>
+              <div class="cell header sev-medium">Medium</div>
+              <div class="cell header sev-low">Low</div>
+              <div class="cell row">Yes</div>
+              <div class="cell p1">P1</div>
+              <div class="cell p1">P1</div>
+              <div class="cell p2">P2</div>
+              <div class="cell p2">P2</div>
+              <div class="cell row">No</div>
+              <div class="cell p2">P2</div>
+              <div class="cell p2">P2</div>
+              <div class="cell p3">P3</div>
+              <div class="cell p4">P4</div>
+            </div>
+          </article>
+
+          <article class="panel ai-panel" id="ai">
+            <div class="panel-head">
+              <div>
+                <span class="mini-label">Step 04</span>
+                <h2>AI Remediation Guide Request</h2>
+              </div>
+            </div>
+            <div class="ai-route">
+              <div>
+                <span>Payload</span>
+                <strong>Normalized MVA rows</strong>
+              </div>
+              <div>
+                <span>AI Server</span>
+                <strong>Local AI Server</strong>
+              </div>
+              <div>
+                <span>Output</span>
+                <strong>Remediation Guide PDF</strong>
+              </div>
+            </div>
+            <div class="payload-card">
+              <code>{ "tool_source": "<span id="payloadSource">Tenable.sc</span>", "report_type": "Remediation", "document_type": "Remediation Guide" }</code>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel queue-panel" id="queue">
+          <div class="panel-head">
+            <div>
+              <span class="mini-label">Remediation Queue</span>
+              <h2>Findings ready for guide generation</h2>
+            </div>
+            <div class="queue-actions">
+              <button class="ghost-button">Download CSV</button>
+              <button class="primary-button">Send to AI Server</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>IP Address</th>
+                  <th>DNS Name</th>
+                  <th>Vulnerability Name</th>
+                  <th>CVE</th>
+                  <th>Severity</th>
+                  <th>Exploit</th>
+                  <th>Priority</th>
+                  <th>Exposure</th>
+                  <th>Last Observed</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>10.20.1.234</td>
+                  <td>web-prod-01</td>
+                  <td>Apache Tomcat AJP Request Injection</td>
+                  <td>CVE-2020-1938</td>
+                  <td><span class="tag critical">Critical</span></td>
+                  <td>Yes</td>
+                  <td><span class="tag p1-tag">P1</span></td>
+                  <td>920</td>
+                  <td>2026-07-03</td>
+                </tr>
+                <tr>
+                  <td>10.20.1.235</td>
+                  <td>vpn-gw-02</td>
+                  <td>SSL Certificate Cannot Be Trusted</td>
+                  <td>N/A</td>
+                  <td><span class="tag high">High</span></td>
+                  <td>No</td>
+                  <td><span class="tag p2-tag">P2</span></td>
+                  <td>780</td>
+                  <td>2026-07-03</td>
+                </tr>
+                <tr>
+                  <td>10.20.2.118</td>
+                  <td>sql-prod-03</td>
+                  <td>Microsoft SQL Server Unsupported Version</td>
+                  <td>N/A</td>
+                  <td><span class="tag critical">Critical</span></td>
+                  <td>Yes</td>
+                  <td><span class="tag p1-tag">P1</span></td>
+                  <td>860</td>
+                  <td>2026-07-03</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+</html>

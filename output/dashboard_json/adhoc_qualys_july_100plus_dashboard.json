@@ -1,0 +1,59 @@
+{
+  "total_vulnerabilities": 125,
+  "severity_counts": {
+    "Critical": 31,
+    "High": 31,
+    "Medium": 31,
+    "Low": 32,
+    "Info": 0,
+    "Unknown": 0
+  },
+  "patch_priority_counts": {
+    "P1": 41,
+    "P2": 31,
+    "P3": 26,
+    "P4": 27
+  },
+  "top_10_affected_assets": [
+    {
+      "asset": "asset-016.corp.local",
+      "vulnerability_count": 4
+    },
+    {
+      "asset": "asset-017.corp.local",
+      "vulnerability_count": 4
+    },
+    {
+      "asset": "asset-018.corp.local",
+      "vulnerability_count": 4
+    },
+    {
+      "asset": "asset-019.corp.local",
+      "vulnerability_count": 4
+    },
+    {
+      "asset": "asset-020.corp.local",
+      "vulnerability_count": 4
+    },
+    {
+      "asset": "asset-021.corp.local",
+      "vulnerability_count": 3
+    },
+    {
+      "asset": "asset-022.corp.local",
+      "vulnerability_count": 3
+    },
+    {
+      "asset": "asset-023.corp.local",
+      "vulnerability_count": 3
+    },
+    {
+      "asset": "asset-024.corp.local",
+      "vulnerability_count": 3
+    },
+    {
+      "asset": "asset-025.corp.local",
+      "vulnerability_count": 3
+    }
+  ]
+}

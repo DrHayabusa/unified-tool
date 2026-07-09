@@ -1,0 +1,43 @@
+{
+  "total_vulnerabilities": 6,
+  "severity_counts": {
+    "Critical": 3,
+    "High": 1,
+    "Medium": 1,
+    "Low": 1,
+    "Info": 0,
+    "Unknown": 0
+  },
+  "patch_priority_counts": {
+    "P1": 3,
+    "P2": 1,
+    "P3": 1,
+    "P4": 1
+  },
+  "top_10_affected_assets": [
+    {
+      "asset": "web-prod-01",
+      "vulnerability_count": 1
+    },
+    {
+      "asset": "legacy-web-01",
+      "vulnerability_count": 1
+    },
+    {
+      "asset": "app-prod-02",
+      "vulnerability_count": 1
+    },
+    {
+      "asset": "sql-prod-03",
+      "vulnerability_count": 1
+    },
+    {
+      "asset": "nginx-prod-01",
+      "vulnerability_count": 1
+    },
+    {
+      "asset": "rdp-jump-01",
+      "vulnerability_count": 1
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "trend_discovered_last_3_months": [
+    {
+      "month": "May 2026",
+      "discovered_count": 3
+    },
+    {
+      "month": "June 2026",
+      "discovered_count": 2
+    },
+    {
+      "month": "July 2026",
+      "discovered_count": 3
+    }
+  ],
+  "total_open_vulnerabilities": {
+    "total_open": 6,
+    "new_vulnerabilities": 3,
+    "not_closed_from_previous_months": 3
+  },
+  "total_open_by_patch_priority": {
+    "P1": 3,
+    "P2": 1,
+    "P3": 1,
+    "P4": 1
+  },
+  "total_open_by_age_and_patch_priority": {
+    "P1": {
+      ">7 days": 3,
+      ">30 days": 2,
+      ">60 days": 1,
+      ">180 days (6+ months)": 0
+    },
+    "P2": {
+      ">7 days": 1,
+      ">30 days": 0,
+      ">60 days": 0,
+      ">180 days (6+ months)": 0
+    },
+    "P3": {
+      ">7 days": 1,
+      ">30 days": 0,
+      ">60 days": 0,
+      ">180 days (6+ months)": 0
+    },
+    "P4": {
+      ">7 days": 1,
+      ">30 days": 1,
+      ">60 days": 1,
+      ">180 days (6+ months)": 1
+    }
+  },
+  "total_vulnerabilities_patched_last_month": {
+    "previous_month": "June 2026",
+    "current_month": "July 2026",
+    "previous_month_open": 5,
+    "new_vulnerabilities_identified_this_month": 3,
+    "current_month_open": 6,
+    "patched_count": 2,
+    "patched_count_by_key_diff": 2,
+    "formula": "previous_month_open + new_vulnerabilities_identified_this_month - current_month_open"
+  }
+}
