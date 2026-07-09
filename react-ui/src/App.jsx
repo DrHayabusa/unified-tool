@@ -31,6 +31,15 @@ export default function App() {
     setMode(nextMode);
   };
 
+  const handleNavigation = (page) => {
+    if (page === "dashboard") {
+      setMode(null);
+      return;
+    }
+
+    setMode(page);
+  };
+
   const handleAdhocUpload = () => {
     setAdhocUploaded(true);
   };
@@ -44,7 +53,7 @@ export default function App() {
     <div className="relative min-h-screen overflow-x-hidden">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_35%_10%,rgba(20,184,166,.18),transparent_30rem),radial-gradient(circle_at_85%_55%,rgba(245,158,11,.12),transparent_24rem)]" />
       <div className="relative z-10 flex">
-        <Sidebar />
+        <Sidebar activePage={mode ?? "dashboard"} onNavigate={handleNavigation} />
 
         <main className="w-full min-w-0 px-4 py-5 sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-[1800px] flex-col gap-5">

@@ -1,16 +1,19 @@
-import { Bot, FileText, History, LayoutDashboard, UploadCloud } from "lucide-react";
+import { BarChart3, LayoutDashboard, Zap } from "lucide-react";
 import { MvaLogo } from "./ToolIcons.jsx";
-import { navItems } from "../data/dashboardData.js";
 
 const navIcon = {
-  Dashboard: LayoutDashboard,
-  Upload: UploadCloud,
-  History,
-  "AI Agent": Bot,
-  Reports: FileText,
+  dashboard: LayoutDashboard,
+  adhoc: Zap,
+  monthly: BarChart3,
 };
 
-export function Sidebar({ activePage = "Dashboard" }) {
+const navItems = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "adhoc", label: "Adhoc Scan" },
+  { id: "monthly", label: "Monthly Compare" },
+];
+
+export function Sidebar({ activePage = "dashboard", onNavigate }) {
   return (
     <aside className="sticky top-0 hidden h-screen w-72 shrink-0 border-r border-cyan-300/15 bg-slate-950/80 p-6 backdrop-blur-2xl lg:block">
       <div className="mb-9 flex items-center gap-4">
@@ -23,12 +26,14 @@ export function Sidebar({ activePage = "Dashboard" }) {
 
       <nav className="space-y-3">
         {navItems.map((item) => {
-          const Icon = navIcon[item];
-          const isActive = item === activePage;
+          const Icon = navIcon[item.id];
+          const isActive = item.id === activePage;
 
           return (
             <button
-              key={item}
+              key={item.id}
+              type="button"
+              onClick={() => onNavigate?.(item.id)}
               className={`group flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left text-sm font-bold transition ${
                 isActive
                   ? "border-emerald-400/50 bg-emerald-400/14 text-white shadow-glow"
@@ -36,7 +41,7 @@ export function Sidebar({ activePage = "Dashboard" }) {
               }`}
             >
               <Icon className={`h-5 w-5 ${isActive ? "text-emerald-300" : "text-slate-500 group-hover:text-cyan-300"}`} />
-              {item}
+              {item.label}
             </button>
           );
         })}

@@ -18,6 +18,7 @@ import {
   monthlyOpenTrend,
   monthlySeverityTrend,
 } from "../data/dashboardData.js";
+import { AiReportBuilder } from "./AiReportBuilder.jsx";
 
 const severitySegments = [
   { label: "Critical", value: 31, color: "bg-red-500", width: "24.8%" },
@@ -149,6 +150,33 @@ export function MonthlyComparison({ uploaded, onUpload, selectedSource, selected
             <p className="mt-1 text-xs font-semibold text-slate-500">{metric.helper}</p>
           </article>
         ))}
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_420px]">
+        <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+          <div className="mb-4 flex items-center gap-3">
+            <FileSpreadsheet className="h-6 w-6 text-emerald-300" />
+            <div>
+              <p className="mini-label">Generated Report Outputs</p>
+              <h3 className="text-xl font-black text-white">Excel dashboard + AI remediation guide</h3>
+            </div>
+          </div>
+          <p className="max-w-4xl text-sm font-semibold leading-6 text-slate-400">
+            The monthly workflow creates the Excel dashboard from local CSV comparison first. After selecting the target month, the normalized findings can be sent to the selected AI provider or local AI server to generate the Remediation Guide PDF.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4">
+              <p className="font-black text-emerald-200">Excel report</p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">Monthly trends, open counts, patch priority, age buckets, and patched-last-month logic.</p>
+            </div>
+            <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4">
+              <p className="font-black text-cyan-200">AI PDF report</p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">Target-month remediation guide generated through the selected AI server route.</p>
+            </div>
+          </div>
+        </article>
+
+        <AiReportBuilder selectedMonth={selectedMonth} onMonthChange={onMonthChange} monthOptions={monthOptions} />
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2 border-b border-white/10">

@@ -49,8 +49,6 @@ export const sourceTools = [
   },
 ];
 
-export const navItems = ["Dashboard", "Upload", "History", "AI Agent", "Reports"];
-
 export const metricCards = [
   {
     label: "Total Open",

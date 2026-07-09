@@ -7,5 +7,6 @@ node_modules/
 react-ui/dist/
 .env
 .env.*
+!.env.example
 !output/pdf/.gitkeep
 !output/previews/.gitkeep
