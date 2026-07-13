@@ -12,22 +12,21 @@ import { Sidebar } from "./components/Sidebar.jsx";
 import { SourceChoice } from "./components/SourceChoice.jsx";
 import { TrendPanel } from "./components/TrendPanel.jsx";
 import { UploadPanel } from "./components/UploadPanel.jsx";
-import { monthOptions, sourceTools } from "./data/dashboardData.js";
+import { sourceTools } from "./data/dashboardData.js";
+import { analyzeAdhocFiles, analyzeMonthlyFiles } from "./lib/vulnerabilityEngine.js";
 
 export default function App() {
   const [selectedSourceId, setSelectedSourceId] = useState("tenable-sc");
   const [mode, setMode] = useState(null);
-  const [adhocUploaded, setAdhocUploaded] = useState(false);
-  const [monthlyUploaded, setMonthlyUploaded] = useState(false);
-  const [monthlyFileCount, setMonthlyFileCount] = useState(0);
-  const [detectedMonthlyMonths, setDetectedMonthlyMonths] = useState([]);
+  const [adhocAnalysis, setAdhocAnalysis] = useState(null);
+  const [monthlyAnalysis, setMonthlyAnalysis] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState("");
 
   const selectedSource = useMemo(
     () => sourceTools.find((source) => source.id === selectedSourceId) ?? sourceTools[0],
     [selectedSourceId],
   );
-  const focusMonthlyDashboard = mode === "monthly" && monthlyUploaded;
+  const focusMonthlyDashboard = mode === "monthly" && Boolean(monthlyAnalysis);
 
   const handleModeChange = (nextMode) => {
     setMode(nextMode);
@@ -42,26 +41,25 @@ export default function App() {
     setMode(page);
   };
 
-  const handleAdhocUpload = () => {
-    setAdhocUploaded(true);
+  const handleSourceChange = (sourceId) => {
+    setSelectedSourceId(sourceId);
+    setAdhocAnalysis(null);
+    setMonthlyAnalysis(null);
+    setSelectedMonth("");
   };
 
-  const handleMonthlyUpload = ({ fileCount, months } = {}) => {
-    const nextMonths = months?.length ? months : detectedMonthlyMonths.length ? detectedMonthlyMonths : monthOptions;
-    setMonthlyUploaded(true);
-    setMonthlyFileCount(fileCount || monthlyFileCount || nextMonths.length);
-    setDetectedMonthlyMonths(nextMonths);
-    setSelectedMonth(nextMonths[nextMonths.length - 1] ?? "July 2026");
+  const handleAdhocAnalyze = async (files) => {
+    const result = await analyzeAdhocFiles(files, selectedSourceId);
+    setAdhocAnalysis(result);
+    setSelectedMonth(result.reportMonth);
+    return result;
   };
 
-  const handleMonthlyFilesReady = ({ fileCount, months }) => {
-    const nextMonths = months?.length ? months : [];
-    setMonthlyFileCount(fileCount);
-    setDetectedMonthlyMonths(nextMonths);
-
-    if (nextMonths.length) {
-      setSelectedMonth(nextMonths[nextMonths.length - 1]);
-    }
+  const handleMonthlyAnalyze = async (files) => {
+    const result = await analyzeMonthlyFiles(files, selectedSourceId);
+    setMonthlyAnalysis(result);
+    setSelectedMonth(result.dashboard.uploadedMonths.at(-1));
+    return result;
   };
 
   return (
@@ -78,7 +76,7 @@ export default function App() {
               <div className="flex min-w-0 flex-col gap-5">
                 {!focusMonthlyDashboard && (
                   <>
-                    <SourceChoice selectedSourceId={selectedSourceId} onSelect={setSelectedSourceId} />
+                    <SourceChoice selectedSourceId={selectedSourceId} onSelect={handleSourceChange} />
                     <OperationMode mode={mode} onModeChange={handleModeChange} />
                   </>
                 )}
@@ -87,19 +85,17 @@ export default function App() {
 
                 {mode === "adhoc" && (
                   <>
-                    <div className="grid gap-5 xl:grid-cols-[1fr_390px]">
-                      <UploadPanel uploaded={adhocUploaded} onUpload={handleAdhocUpload} />
-                      <TrendPanel />
-                    </div>
+                    <UploadPanel selectedSource={selectedSource} analysis={adhocAnalysis} onAnalyze={handleAdhocAnalyze} />
 
-                    {adhocUploaded ? (
+                    {adhocAnalysis ? (
                       <>
-                        <MetricsRow />
+                        <MetricsRow dashboard={adhocAnalysis.dashboard} />
+                        <TrendPanel dashboard={adhocAnalysis.dashboard} />
                         <div className="grid gap-5 xl:grid-cols-[1fr_1fr] 2xl:grid-cols-[1.1fr_1fr]">
-                          <FieldMappingPanel source={selectedSource} />
+                          <FieldMappingPanel source={selectedSource} exportType={adhocAnalysis.exportType} />
                           <PriorityMatrix />
                         </div>
-                        <RemediationQueue />
+                        <RemediationQueue findings={adhocAnalysis.findings} />
                       </>
                     ) : (
                       <EmptyWorkflow />
@@ -109,14 +105,11 @@ export default function App() {
 
                 {mode === "monthly" && (
                   <MonthlyComparison
-                    uploaded={monthlyUploaded}
-                    onUpload={handleMonthlyUpload}
+                    analysis={monthlyAnalysis}
+                    onAnalyze={handleMonthlyAnalyze}
                     selectedSource={selectedSource}
                     selectedMonth={selectedMonth}
                     onMonthChange={setSelectedMonth}
-                    monthOptions={detectedMonthlyMonths.length ? detectedMonthlyMonths : monthlyUploaded ? monthOptions : []}
-                    detectedFileCount={monthlyFileCount}
-                    onFilesReady={handleMonthlyFilesReady}
                   />
                 )}
               </div>
@@ -126,14 +119,15 @@ export default function App() {
                   <StatusPanel
                     selectedSource={selectedSource}
                     mode={mode}
-                    adhocUploaded={adhocUploaded}
-                    monthlyUploaded={monthlyUploaded}
+                    adhocUploaded={Boolean(adhocAnalysis)}
+                    monthlyUploaded={Boolean(monthlyAnalysis)}
                   />
                   {mode !== "monthly" && (
                     <AiReportBuilder
                       selectedMonth={selectedMonth || "No month detected"}
                       onMonthChange={setSelectedMonth}
-                      monthOptions={monthlyUploaded ? monthOptions : ["No month detected"]}
+                      monthOptions={adhocAnalysis ? [adhocAnalysis.reportMonth] : ["No month detected"]}
+                      analysis={adhocAnalysis}
                       compact
                     />
                   )}
@@ -153,7 +147,7 @@ function LandingHint({ selectedSource }) {
       <div className="grid gap-5 lg:grid-cols-3">
         {[
           [DatabaseZap, "Source-aware dashboards", `${selectedSource.name} mapping is selected and ready.`],
-          [ShieldCheck, "Exploit-aware priority", "SC Exploit? and IO Exploit Ease both feed the same priority matrix."],
+          [ShieldCheck, "Exploit-aware priority", "Each supported scanner's exploit signal feeds the same approved P1-P4 matrix."],
           [BrainCircuit, "AI PDF generation", "Normalized rows can be sent to your AI server for the approved Remediation Guide format."],
         ].map(([Icon, title, body]) => (
           <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">

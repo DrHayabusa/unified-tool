@@ -1,0 +1,134 @@
+{
+  "total_vulnerabilities": 542,
+  "distinct_assets": 45,
+  "exploit_available": 444,
+  "cisa_kev": 0,
+  "internet_exposed": 110,
+  "detected_export_types": [
+    "Remediation per assets"
+  ],
+  "severity_counts": {
+    "Critical": 98,
+    "High": 123,
+    "Medium": 148,
+    "Low": 173,
+    "Info": 0,
+    "Unknown": 0
+  },
+  "patch_priority_counts": {
+    "P1": 123,
+    "P2": 419,
+    "P3": 0,
+    "P4": 0
+  },
+  "top_10_affected_assets": [
+    {
+      "asset": "cs-asset-006.corp.example",
+      "vulnerability_count": 20
+    },
+    {
+      "asset": "cs-asset-003.corp.example",
+      "vulnerability_count": 19
+    },
+    {
+      "asset": "cs-asset-008.corp.example",
+      "vulnerability_count": 18
+    },
+    {
+      "asset": "cs-asset-005.corp.example",
+      "vulnerability_count": 17
+    },
+    {
+      "asset": "cs-asset-002.corp.example",
+      "vulnerability_count": 16
+    },
+    {
+      "asset": "cs-asset-010.corp.example",
+      "vulnerability_count": 16
+    },
+    {
+      "asset": "cs-asset-007.corp.example",
+      "vulnerability_count": 15
+    },
+    {
+      "asset": "cs-asset-016.corp.example",
+      "vulnerability_count": 15
+    },
+    {
+      "asset": "cs-asset-024.corp.example",
+      "vulnerability_count": 15
+    },
+    {
+      "asset": "cs-asset-032.corp.example",
+      "vulnerability_count": 15
+    }
+  ],
+  "top_products": [
+    {
+      "product": "Microsoft Exchange Server",
+      "vulnerability_count": 108
+    },
+    {
+      "product": "Linux Kernel",
+      "vulnerability_count": 96
+    },
+    {
+      "product": "Cisco IOS XE",
+      "vulnerability_count": 84
+    },
+    {
+      "product": "Google Chrome",
+      "vulnerability_count": 72
+    },
+    {
+      "product": "Apache Tomcat",
+      "vulnerability_count": 65
+    },
+    {
+      "product": "OpenSSL",
+      "vulnerability_count": 52
+    },
+    {
+      "product": "Apache Log4j",
+      "vulnerability_count": 39
+    },
+    {
+      "product": "Microsoft Windows Server",
+      "vulnerability_count": 26
+    }
+  ],
+  "top_recommended_remediations": [
+    {
+      "remediation": "Install the supported Exchange Server security update and verify Extended Protection configuration.",
+      "vulnerability_count": 108
+    },
+    {
+      "remediation": "Install the distribution kernel security update and reboot into the fixed kernel.",
+      "vulnerability_count": 96
+    },
+    {
+      "remediation": "Install the fixed Cisco IOS XE release and disable the HTTP server when it is not required.",
+      "vulnerability_count": 84
+    },
+    {
+      "remediation": "Update Google Chrome to the latest enterprise stable release and relaunch the browser.",
+      "vulnerability_count": 72
+    },
+    {
+      "remediation": "Upgrade Apache Tomcat, disable unused AJP connectors, and require a connector secret.",
+      "vulnerability_count": 65
+    },
+    {
+      "remediation": "Apply the operating-system vendor OpenSSL package update and restart dependent services.",
+      "vulnerability_count": 52
+    },
+    {
+      "remediation": "Upgrade Log4j to a vendor-supported fixed release and restart the application service.",
+      "vulnerability_count": 39
+    },
+    {
+      "remediation": "Install the current Microsoft cumulative security update and restart the affected host.",
+      "vulnerability_count": 26
+    }
+  ]
+}

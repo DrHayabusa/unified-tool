@@ -1,40 +1,65 @@
-import { Line, LineChart, ResponsiveContainer } from "recharts";
-import { trendRows } from "../data/dashboardData.js";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Crosshair, Globe2, Server } from "lucide-react";
 
-const trendData = [5, 8, 6, 11, 9, 12, 7, 10, 13, 9, 11, 10].map((value, index) => ({ index, value }));
+export function TrendPanel({ dashboard }) {
+  const assets = (dashboard?.top10AffectedAssets ?? []).map((row) => ({
+    asset: shorten(row.asset),
+    fullAsset: row.asset,
+    count: row.vulnerabilityCount,
+  }));
+  const showCrowdStrikeSignals = (dashboard?.cisaKev ?? 0) > 0 || (dashboard?.internetExposed ?? 0) > 0;
 
-export function TrendPanel() {
   return (
     <section className="cyber-panel rounded-[1.75rem] p-5">
-      <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="mini-label">Trend</p>
-          <h2 className="mt-1 text-xl font-black text-white">vs previous</h2>
+          <p className="mini-label">Asset Concentration</p>
+          <h2 className="mt-1 text-xl font-black text-white">Top 10 affected assets</h2>
         </div>
-        <select className="rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm font-bold text-slate-300">
-          <option>Last 30 Days</option>
-          <option>Last 90 Days</option>
-        </select>
+        <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100">
+          {dashboard?.distinctAssets ?? 0} assets in scope
+        </span>
       </div>
 
-      <div className="space-y-3">
-        {trendRows.map((row) => (
-          <div key={row.label} className="grid grid-cols-[1fr_auto_130px] items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-            <div>
-              <p className="font-bold text-slate-200">{row.label}</p>
-              <p className={`text-sm font-black ${row.tone === "green" ? "text-emerald-400" : "text-red-400"}`}>{row.change}</p>
-            </div>
-            <p className="text-3xl font-black text-white">{row.value}</p>
-            <div className="h-12">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData}>
-                  <Line type="monotone" dataKey="value" stroke={row.tone === "green" ? "#22c55e" : "#ef4444"} strokeWidth={2.4} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        ))}
+      <div className="h-[340px] rounded-2xl border border-white/10 bg-slate-950/45 p-3">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={assets} layout="vertical" margin={{ top: 8, right: 22, bottom: 8, left: 32 }}>
+            <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" allowDecimals={false} stroke="#64748b" tick={{ fontSize: 11 }} />
+            <YAxis type="category" dataKey="asset" width={145} stroke="#64748b" tick={{ fontSize: 11 }} />
+            <Tooltip
+              cursor={{ fill: "rgba(15, 23, 42, 0.55)" }}
+              contentStyle={{ background: "#020617", border: "1px solid #1e293b", borderRadius: 12 }}
+              formatter={(value) => [value, "Open findings"]}
+              labelFormatter={(_, payload) => payload?.[0]?.payload?.fullAsset ?? "Asset"}
+            />
+            <Bar dataKey="count" fill="#22d3ee" radius={[0, 7, 7, 0]} isAnimationActive={false} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
+
+      {showCrowdStrikeSignals && (
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <Signal icon={Crosshair} label="CISA KEV" value={dashboard.cisaKev} tone="text-red-300" />
+          <Signal icon={Globe2} label="Internet Exposed" value={dashboard.internetExposed} tone="text-cyan-300" />
+          <Signal icon={Server} label="Exploit Available" value={dashboard.exploitAvailable} tone="text-orange-300" />
+        </div>
+      )}
     </section>
   );
+}
+
+function Signal({ icon: Icon, label, value, tone }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+      <Icon className={`h-5 w-5 ${tone}`} />
+      <p className="mt-3 text-2xl font-black text-white">{Number(value ?? 0).toLocaleString()}</p>
+      <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+function shorten(value) {
+  if (!value) return "Unknown";
+  return value.length > 23 ? `${value.slice(0, 20)}...` : value;
 }

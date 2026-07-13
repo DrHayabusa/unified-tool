@@ -1,6 +1,12 @@
 import { CalendarDays, ShieldCheck } from "lucide-react";
 
 export function HeroHeader() {
+  const currentDate = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date());
+
   return (
     <header className="relative overflow-hidden rounded-[2rem] border border-cyan-300/15 bg-slate-950/75 p-7 shadow-cyber backdrop-blur-2xl">
       <div className="absolute inset-0 bg-cyber-grid bg-[length:72px_72px] opacity-35" />
@@ -28,7 +34,7 @@ export function HeroHeader() {
         <div className="flex flex-wrap gap-3">
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm font-bold text-slate-200">
             <CalendarDays className="h-5 w-5 text-cyan-300" />
-            08 Jul 2026
+            {currentDate}
           </div>
           <div className="flex items-center gap-3 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-200">
             <ShieldCheck className="h-5 w-5" />

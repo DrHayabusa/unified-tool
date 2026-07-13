@@ -8,7 +8,14 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Iterable, Literal
 
-SourceTool = Literal["tenable_sc", "tenable_io", "qualys_monthly", "qualys_adhoc"]
+SourceTool = Literal[
+    "tenable_sc",
+    "tenable_io",
+    "qualys_monthly",
+    "qualys_adhoc",
+    "crowdstrike_vulnerabilities",
+    "crowdstrike_remediation_assets",
+]
 
 
 SEVERITY_ORDER = ["Critical", "High", "Medium", "Low", "Info", "Unknown"]
@@ -40,6 +47,16 @@ class NormalizedFinding:
     vulnerability_age_days: int | None
     protocol: str
     port: str
+    record_count: int = 1
+    status: str = ""
+    product: str = ""
+    asset_criticality: str = ""
+    internet_exposed: bool = False
+    cisa_kev: bool = False
+    group_names: str = ""
+    tags: str = ""
+    exploit_rating: str = ""
+    export_type: str = ""
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -47,6 +64,10 @@ class NormalizedFinding:
 
 def detect_source(fieldnames: Iterable[str]) -> SourceTool:
     normalized = {field.strip() for field in fieldnames if field}
+    if {"Hostname", "RecommendedRemediation", "RemediationDetail", "Count"} <= normalized:
+        return "crowdstrike_remediation_assets"
+    if {"Hostname", "CVE ID", "Vulnerability ID", "Exploit status label"} <= normalized:
+        return "crowdstrike_vulnerabilities"
     if {"IP Address", "Plugin", "Plugin Name"} & normalized:
         return "tenable_sc"
     if any(field.startswith("definition.") for field in normalized) or any(field.startswith("asset.") for field in normalized):
@@ -55,7 +76,9 @@ def detect_source(fieldnames: Iterable[str]) -> SourceTool:
         return "qualys_monthly"
     if {"QID", "Title", "CVSS4 Base"} <= normalized:
         return "qualys_adhoc"
-    raise ValueError("Unable to detect source. Expected Tenable.sc, Tenable.io, or Qualys CSV headers.")
+    raise ValueError(
+        "Unable to detect source. Expected Tenable.sc, Tenable.io, Qualys, or CrowdStrike CSV headers."
+    )
 
 
 def detect_tenable_source(fieldnames: Iterable[str]) -> SourceTool:
@@ -83,6 +106,10 @@ def normalize_row(row: dict[str, str], source_tool: SourceTool) -> NormalizedFin
         return _normalize_io_row(row)
     if source_tool in {"qualys_monthly", "qualys_adhoc"}:
         return _normalize_qualys_row(row, source_tool)
+    if source_tool == "crowdstrike_vulnerabilities":
+        return _normalize_crowdstrike_vulnerability_row(row)
+    if source_tool == "crowdstrike_remediation_assets":
+        return _normalize_crowdstrike_remediation_row(row)
     raise ValueError(f"Unsupported source tool: {source_tool}")
 
 
@@ -231,6 +258,183 @@ def _normalize_qualys_row(row: dict[str, str], source_tool: SourceTool) -> Norma
     )
 
 
+def _normalize_crowdstrike_vulnerability_row(row: dict[str, str]) -> NormalizedFinding:
+    severity = normalize_severity(_pick(row, "Severity", "Third-party Rating"))
+    exploit_status = join_values(
+        _pick(row, "Exploit status label"),
+        _pick(row, "Exploit status value"),
+    )
+    cisa_kev = is_truthy(_pick(row, "Is CISA KEV"))
+    exploit_available = is_exploit_available(exploit_status) or cisa_kev
+    exploit_rating = _pick(row, "ExPRT Rating")
+    vulnerability_id = _pick(row, "Vulnerability ID", "Vulnerability Metadata ID", "CVE ID")
+    cve = clean_multi_value(_pick(row, "CVE ID"))
+    ip = _pick(row, "LocalIP")
+    hostname = _pick(row, "Hostname")
+    host_id = _pick(row, "Host ID", "Third-party Asset IDs")
+    protocol = _pick(row, "Services Transports", "Services Protocols")
+    port = _pick(row, "Ports", "Services Ports")
+    product = _pick(row, "Product")
+    internet_exposed = is_truthy(_pick(row, "Internet exposure"))
+    asset_criticality = _pick(row, "Asset Criticality")
+    remediation = join_values(
+        _pick(row, "Recommended Remediations"),
+        _pick(row, "Remediation Details"),
+        _pick(row, "Minimum Remediation"),
+        _pick(row, "Minimum Remediation Details"),
+        _pick(row, "AdditionalRemediationSteps"),
+    )
+    kb_links = join_values(
+        _pick(row, "Remediation Links"),
+        _pick(row, "Minimum Remediation Links"),
+        _pick(row, "Minimum Remediation Advisory URL"),
+        _pick(row, "AdditionalRemediationAdvisoryUrl"),
+        _pick(row, "Vendor Advisory"),
+        _pick(row, "References"),
+    )
+
+    return NormalizedFinding(
+        finding_key=build_finding_key(
+            "crowdstrike_vulnerabilities",
+            ip or host_id or hostname,
+            vulnerability_id,
+            cve,
+            protocol,
+            port,
+        ),
+        source_tool="crowdstrike_vulnerabilities",
+        source_vulnerability_id=vulnerability_id,
+        ip_address=ip,
+        dns_name=hostname,
+        vulnerability_name=_pick(row, "CVE Description", "CVE ID", "Vulnerability ID"),
+        cve=cve,
+        severity=severity,
+        exploit_available=exploit_available,
+        exploit_signal=exploit_status or ("CISA KEV" if cisa_kev else ""),
+        patch_priority=calculate_patch_priority(severity, exploit_available),
+        asset_exposure=calculate_crowdstrike_exposure(
+            severity=severity,
+            exploit_available=exploit_available,
+            base_score=_pick(row, "Base Score"),
+            asset_criticality=asset_criticality,
+            internet_exposed=internet_exposed,
+            cisa_kev=cisa_kev,
+        ),
+        vulnerability_finding=_pick(row, "Simplified Evaluation Logic", "Evaluation logic"),
+        summary=_pick(row, "CVE Description"),
+        description=join_values(
+            _pick(row, "Evaluation logic"),
+            _pick(row, "Vulnerable Product Versions"),
+        ),
+        remediation=remediation,
+        kb_links=kb_links,
+        platform_details=join_values(
+            _pick(row, "Platform"),
+            _pick(row, "OSVersion"),
+            _pick(row, "OS Build"),
+            product,
+        ),
+        first_discovered=normalize_date_string(_pick(row, "Created Date")),
+        last_observed=normalize_date_string(
+            _pick(row, "Last Scan Time", "Host Last Seen Within", "Spotlight Published Date")
+        ),
+        vulnerability_age_days=None,
+        protocol=protocol,
+        port=port,
+        status=_pick(row, "Status", "Instance state"),
+        product=product,
+        asset_criticality=asset_criticality,
+        internet_exposed=internet_exposed,
+        cisa_kev=cisa_kev,
+        group_names=_pick(row, "Group Names"),
+        tags=_pick(row, "Tags"),
+        exploit_rating=exploit_rating,
+        export_type="Vulnerabilities / Vulnerability per asset",
+    )
+
+
+def _normalize_crowdstrike_remediation_row(row: dict[str, str]) -> NormalizedFinding:
+    severity = _crowdstrike_aggregate_severity(row)
+    exploit_signal = _pick(row, "Exploits")
+    if not exploit_signal:
+        exploit_signal = join_values(
+            f"ExPRT Critical={_pick(row, 'ExPRT Critical')}",
+            f"ExPRT High={_pick(row, 'ExPRT High')}",
+        )
+    exploit_available = is_exploit_available(_pick(row, "Exploits"))
+    ip = _pick(row, "LocalIP")
+    hostname = _pick(row, "Hostname")
+    host_id = _pick(row, "HostID", "Third-party Asset IDs")
+    remediation_name = _pick(row, "RecommendedRemediation", "Recommendation Type")
+    product = _pick(row, "Products")
+    internet_exposed = is_truthy(_pick(row, "Internet exposure"))
+    asset_criticality = _pick(row, "Asset Criticality")
+    count = max(1, parse_int(_pick(row, "Count")) or 1)
+
+    return NormalizedFinding(
+        finding_key=build_finding_key(
+            "crowdstrike_remediation_assets",
+            ip or host_id or hostname,
+            remediation_name,
+            "",
+            "",
+            product,
+        ),
+        source_tool="crowdstrike_remediation_assets",
+        source_vulnerability_id=remediation_name,
+        ip_address=ip,
+        dns_name=hostname,
+        vulnerability_name=remediation_name,
+        cve="",
+        severity=severity,
+        exploit_available=exploit_available,
+        exploit_signal=exploit_signal,
+        patch_priority=calculate_patch_priority(severity, exploit_available),
+        asset_exposure=calculate_crowdstrike_exposure(
+            severity=severity,
+            exploit_available=exploit_available,
+            base_score="",
+            asset_criticality=asset_criticality,
+            internet_exposed=internet_exposed,
+            cisa_kev=False,
+        ),
+        vulnerability_finding=_pick(row, "RemediationDetail"),
+        summary=remediation_name,
+        description=_pick(row, "AdditionalRemediationSteps", "RemediationDetail"),
+        remediation=join_values(
+            remediation_name,
+            _pick(row, "RemediationDetail"),
+            _pick(row, "AdditionalRemediationSteps"),
+        ),
+        kb_links=_pick(row, "AdditionalRemediationAdvisoryUrl"),
+        platform_details=join_values(
+            _pick(row, "Platform"),
+            _pick(row, "OSVersion"),
+            product,
+        ),
+        first_discovered="",
+        last_observed=normalize_date_string(_pick(row, "Patch Publication Date")),
+        vulnerability_age_days=None,
+        protocol="",
+        port="",
+        record_count=count,
+        status=_pick(row, "Instance state"),
+        product=product,
+        asset_criticality=asset_criticality,
+        internet_exposed=internet_exposed,
+        cisa_kev=False,
+        group_names=_pick(row, "GroupNames"),
+        tags=_pick(row, "Tags"),
+        exploit_rating=join_values(
+            _pick(row, "ExPRT Critical"),
+            _pick(row, "ExPRT High"),
+            _pick(row, "ExPRT Medium"),
+            _pick(row, "ExPRT Low"),
+        ),
+        export_type="Remediation per assets",
+    )
+
+
 def calculate_patch_priority(severity: str, exploit_available: bool) -> str:
     severity = severity.title()
     if exploit_available:
@@ -257,7 +461,23 @@ def is_exploit_available(value: str) -> bool:
     }
     if text in negative_tokens:
         return False
-    if any(token in text for token in ("available", "exploited", "exploitable", "exploit code", "functional", "high", "proof-of-concept", "poc", "true", "yes")):
+    if any(
+        token in text
+        for token in (
+            "available",
+            "confirmed",
+            "weaponized",
+            "exploited",
+            "exploitable",
+            "exploit code",
+            "functional",
+            "high",
+            "proof-of-concept",
+            "poc",
+            "true",
+            "yes",
+        )
+    ):
         return True
     return bool(re.search(r"\b[1-9](?:\.\d+)?\b", text))
 
@@ -298,6 +518,13 @@ def normalize_qualys_severity(value: str) -> str:
 
 
 def row_is_open(row: dict[str, str], source_tool: SourceTool) -> bool:
+    if source_tool == "crowdstrike_vulnerabilities":
+        status = clean_text(row.get("Status")).lower()
+        instance_state = clean_text(row.get("Instance state")).lower()
+        suppressed = is_truthy(row.get("Is Suppressed"))
+        closed_tokens = {"closed", "fixed", "resolved", "remediated", "inactive"}
+        return not suppressed and status not in closed_tokens and instance_state not in closed_tokens
+
     if source_tool != "qualys_monthly":
         return True
     status = clean_text(row.get("Vuln Status")).lower()
@@ -318,6 +545,45 @@ def calculate_asset_exposure(severity: str, exploit_available: bool, *score_cand
 
     severity_base = {"Critical": 900, "High": 720, "Medium": 480, "Low": 220, "Info": 80}.get(severity, 120)
     return min(1000, severity_base + (80 if exploit_available else 0))
+
+
+def calculate_crowdstrike_exposure(
+    *,
+    severity: str,
+    exploit_available: bool,
+    base_score: str,
+    asset_criticality: str,
+    internet_exposed: bool,
+    cisa_kev: bool,
+) -> int:
+    score = parse_float(base_score)
+    if score is None:
+        exposure = {
+            "Critical": 760,
+            "High": 610,
+            "Medium": 410,
+            "Low": 190,
+            "Info": 70,
+        }.get(severity, 120)
+    else:
+        exposure = round(score * 75) if score <= 10 else round(score * 0.75)
+
+    criticality = clean_text(asset_criticality).lower()
+    criticality_bonus = 110 if "critical" in criticality else 70 if "high" in criticality else 35 if "medium" in criticality else 0
+    signal_bonus = (90 if exploit_available else 0) + (80 if cisa_kev else 0) + (65 if internet_exposed else 0)
+    return max(0, min(1000, exposure + criticality_bonus + signal_bonus))
+
+
+def is_truthy(value: object) -> bool:
+    text = clean_text(value).lower()
+    return text in {"1", "true", "yes", "y", "available", "exposed", "internet exposed"}
+
+
+def _crowdstrike_aggregate_severity(row: dict[str, str]) -> str:
+    for severity in ("Critical", "High", "Medium", "Low", "Unknown"):
+        if (parse_int(_pick(row, severity)) or 0) > 0:
+            return severity
+    return "Unknown"
 
 
 def build_finding_key(source_tool: SourceTool, ip: str, vulnerability_id: str, cve: str, protocol: str, port: str) -> str:

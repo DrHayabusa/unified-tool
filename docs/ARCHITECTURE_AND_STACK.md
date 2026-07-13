@@ -523,18 +523,18 @@ Expected result: no committed secret patterns.
 
 To finish the production platform, build or deploy a proper backend service that wraps the current prototype behavior.
 
-Minimum backend capabilities:
+Recommended enterprise backend capabilities:
 
 1. `GET /health`
-2. `POST /health/nvidia`
-3. `POST /upload/analyze`
-4. `POST /generate/excel`
-5. `POST /generate/pdf`
-6. File streaming for large CSVs.
-7. Server-side NVIDIA key management.
-8. Server-side PDF rendering.
-9. Authentication if exposed beyond a trusted internal network.
-10. Clear request size, timeout, and logging policy.
+2. `POST /ai/test`
+3. `POST /ai/remediation-guide`
+4. Server-side NVIDIA key management.
+5. Authentication and authorization.
+6. CORS allowlisting for the deployed frontend.
+7. Request-size, timeout, rate-limit, and audit policy.
+8. Server-side PDF rendering when the organization does not permit browser generation.
+
+CSV parsing, comparison, normalized CSV, and Excel generation can remain browser-local. Do not add upload endpoints unless policy requires server-side processing.
 
 Recommended backend framework for production:
 
@@ -547,7 +547,7 @@ Recommended backend framework for production:
 
 ## 22. Future Source Tool Expansion
 
-When adding MDVM or CrowdStrike:
+When adding MDVM, additional Qualys variants, or Custom CSV:
 
 1. Collect raw export headers.
 2. Add detection logic in `detect_source`.
@@ -561,4 +561,4 @@ When adding MDVM or CrowdStrike:
 
 ## 23. Final Architecture Summary
 
-MVA Unified Agent is currently a no-database, React-first vulnerability reporting platform with a Python normalization engine, Excel/PDF generation scripts, and a secure AI architecture that expects provider keys to live in the backend. The public UI is deployed and usable for design/demo workflows. The next major production step is hosting the backend API so the UI can perform real cloud AI PDF generation without exposing secrets.
+MVA Unified Agent is a no-database, React-first vulnerability reporting platform with browser-side SC, IO, Qualys, and CrowdStrike parsing; a shared Python reference engine; Excel/PDF generation; and an optional AI handoff. Session keys support controlled cloud testing, while an organization-controlled API proxy remains the recommended production architecture for secrets, policy, and auditability. CrowdStrike release details are in `docs/CROWDSTRIKE_IMPLEMENTATION.md`.

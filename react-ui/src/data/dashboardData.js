@@ -6,6 +6,7 @@ export const sourceTools = [
     accent: "emerald",
     description: "Security Center export",
     mapped: "12 of 12 key fields mapped",
+    implemented: true,
   },
   {
     id: "tenable-io",
@@ -14,6 +15,7 @@ export const sourceTools = [
     accent: "sky",
     description: "Dot notation VM export",
     mapped: "12 of 12 key fields mapped",
+    implemented: true,
   },
   {
     id: "mdvm",
@@ -22,6 +24,7 @@ export const sourceTools = [
     accent: "violet",
     description: "Microsoft Defender VM",
     mapped: "10 of 12 key fields mapped",
+    implemented: false,
   },
   {
     id: "crowdstrike",
@@ -29,7 +32,8 @@ export const sourceTools = [
     shortName: "CS",
     accent: "red",
     description: "Exposure Management",
-    mapped: "11 of 12 key fields mapped",
+    mapped: "All supplied export fields supported",
+    implemented: true,
   },
   {
     id: "qualys",
@@ -38,6 +42,7 @@ export const sourceTools = [
     accent: "red",
     description: "VMDR findings export",
     mapped: "12 of 12 key fields mapped",
+    implemented: true,
   },
   {
     id: "custom-csv",
@@ -46,6 +51,7 @@ export const sourceTools = [
     accent: "slate",
     description: "Manual field mapping",
     mapped: "Manual review required",
+    implemented: false,
   },
 ];
 
