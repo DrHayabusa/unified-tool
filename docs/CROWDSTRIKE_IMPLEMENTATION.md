@@ -135,13 +135,13 @@ Official references:
 - https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b/modelcard
 - https://build.nvidia.com/nvidia
 
-For lower latency or lower cost, the UI also lists Nemotron 3 Super and Nano. Ultra remains the quality-first choice for the remediation-writing workload.
+For direct browser-compatible testing, the UI routes the free Nemotron Ultra model through OpenRouter. Groq GPT OSS 120B is the lower-latency alternative. A native NVIDIA key uses the MVA Cloud API proxy route because NVIDIA Build does not expose the browser CORS path required by GitHub Pages.
 
 ## 11. Security Architecture
 
 CSV parsing, source detection, normalization, comparison, and local Excel/PDF generation run in browser memory. No database is required.
 
-Session-pasted API keys stay in React state and are not committed or stored in GitHub. A direct Build API call is suitable for controlled testing. Enterprise production should use an organization-controlled cloud API proxy with authentication, CORS allowlisting, secret management, rate limiting, request-size limits, audit logging, and outbound allowlisting to NVIDIA.
+Session-pasted API keys stay in React state and are not committed or stored in GitHub. Direct OpenRouter/Groq calls are suitable for controlled browser testing. Native NVIDIA and enterprise production should use an organization-controlled cloud API proxy with authentication, CORS allowlisting, secret management, rate limiting, request-size limits, audit logging, and outbound allowlisting.
 
 Never hard-code provider keys into the public GitHub Pages bundle. Rotate any key that was pasted into chat, source control, screenshots, or logs.
 

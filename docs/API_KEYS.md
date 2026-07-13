@@ -1,132 +1,114 @@
 # API Key Handling
 
-Do not paste real API keys into the React UI source code, GitHub Pages, sample files, screenshots, Markdown docs, or commits.
+This repository contains no real provider key. Never commit a key to React source, GitHub Pages, sample data, screenshots, Markdown, or Git history.
 
-The deployed GitHub Pages app is a static frontend. Anything placed inside React code can be viewed by anyone who opens browser developer tools.
+## Supported Paths
 
-## Was the NVIDIA API Key Added?
+| UI option | Key type | Browser behavior | Production recommendation |
+|---|---|---|---|
+| OpenRouter - Nemotron 3 Ultra | OpenRouter key | Calls `https://openrouter.ai/api/v1/chat/completions` directly | Use for controlled session testing; proxy for managed enterprise use |
+| Groq - GPT OSS 120B | Groq key | Calls `https://api.groq.com/openai/v1/chat/completions` directly | Use for controlled session testing; proxy for managed enterprise use |
+| NVIDIA NIM - MVA Cloud Proxy | NVIDIA key | Sends the request to a deployed MVA Cloud API, which calls NVIDIA | Recommended NVIDIA architecture |
+| MVA Cloud API | Optional MVA bearer token | Calls the organization-hosted `/health` and `/generate/pdf` routes | Recommended enterprise architecture |
+| Template PDF - No AI | No key | Generates the approved PDF locally | Safe offline fallback |
 
-No.
+NVIDIA Build's API works from a server but does not expose the browser CORS headers required by a static GitHub Pages application. Do not paste `https://integrate.api.nvidia.com/v1` into the **MVA Cloud API URL** field. That field requires the public HTTPS URL of an MVA proxy.
 
-The repository was scanned before publishing. No real NVIDIA key was committed to the repo.
+## Generate Keys
 
-## Where to Put Keys
+- OpenRouter: `https://openrouter.ai/settings/keys`
+- Groq: `https://console.groq.com/keys`
+- NVIDIA Build: `https://build.nvidia.com/settings/api-keys`
 
-For production, put the NVIDIA key on the cloud backend that generates the PDF.
+The same links are available inside the AI Report Builder.
 
-Example backend environment:
+## Session-Only Fields
+
+The React UI exposes:
 
 ```text
-NVIDIA_API_KEY=<your key>
+API Key
+Provider Base URL or MVA Cloud API URL
+Model Route
+```
+
+Session guarantees:
+
+1. The value is held in React component state only.
+2. The value is not written to `localStorage`, `sessionStorage`, IndexedDB, cookies, reports, or sample files.
+3. Switching providers clears the previous key to prevent cross-provider credential leakage.
+4. Refreshing or closing the tab clears the value.
+5. Direct-provider keys are placed only in the `Authorization` header, never in the JSON request body.
+6. The browser sends data only after the user clicks **Test Provider** or **Generate PDF Report**.
+
+## Local Environment
+
+The ignored `.env` file may hold development-only server settings:
+
+```text
+NVIDIA_API_KEY=<private key>
 NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 NVIDIA_MODEL=nvidia/nemotron-3-ultra-550b-a55b
+GROQ_API_KEY=<optional key>
+OPENROUTER_API_KEY=<optional key>
 ```
 
-If you receive `401 Unauthorized`, the key is wrong, expired, copied with an extra space, or not authorized for the selected NVIDIA model.
+Run the NVIDIA server-to-server validation without exposing the key:
 
-## Frontend Connectivity Test Button
+```bash
+python3 tools/test_nvidia_connectivity.py
+```
 
-The deployed UI has a **Test API Connectivity** button in the AI PDF panel.
+## MVA Cloud API Contract
 
-That button tests your backend health endpoint, for example:
+The prototype is `tools/mva_api_server.py`. A production deployment must be placed behind HTTPS and organizational authentication.
+
+Routes:
 
 ```text
-https://your-mva-api.example.com/health/nvidia
+GET  /health
+POST /health/nvidia
+POST /generate/pdf
 ```
 
-It does not send the NVIDIA key from the browser. The backend must hold the key and expose a safe health endpoint.
+NVIDIA connectivity body:
 
-## Session-Only Paste Option in the UI
-
-The AI PDF panel also includes:
-
-```text
-API Key (session only)
-Provider Base URL
-Model
+```json
+{
+  "apiKey": "session-only override or omit when server environment is configured",
+  "baseUrl": "https://integrate.api.nvidia.com/v1",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b"
+}
 ```
 
-Use this for quick testing from the browser session.
+Production controls:
 
-Example NVIDIA values:
+1. Store provider keys in the cloud secret manager or backend environment.
+2. Do not accept provider keys from arbitrary public clients after rollout.
+3. Allow CORS only from the approved MVA frontend origin.
+4. Authenticate users and authorize report generation.
+5. Apply request-size, rate, token, and timeout limits.
+6. Redact vulnerability content and credentials from application logs.
+7. Allow outbound HTTPS only to approved AI provider hosts.
+8. Rotate every key previously pasted into a public chat or screenshot.
 
-```text
-Provider Base URL: https://integrate.api.nvidia.com/v1
-Model: nvidia/nemotron-3-ultra-550b-a55b
+## Error Meaning
+
+| Status | Meaning | Action |
+|---|---|---|
+| `401` | Missing, expired, incomplete, or invalid key | Generate a fresh key and paste the complete value |
+| `402` | Provider account lacks credit | Add credit or choose a free model route |
+| `403` | Key lacks model permission or policy blocked the request | Verify model access and provider controls |
+| `429` | Trial or account rate limit reached | Wait, retry, or choose another provider |
+| `502/503` | Selected model/provider temporarily unavailable | Retry or use another provider or Template PDF |
+| Browser could not reach endpoint | URL, VPN, CORS, TLS, or deployment issue | Verify the HTTPS URL and server CORS policy |
+
+## Secret Scan
+
+Before every public push:
+
+```bash
+git grep -nE 'nvapi-|gsk_|sk-or-v1-|NVIDIA_API_KEY=[^<]|GROQ_API_KEY=[^<]|OPENROUTER_API_KEY=[^<]'
 ```
 
-Important behavior:
-
-```text
-The key is not committed to GitHub.
-The key is not stored in localStorage.
-The key is not saved by the app.
-The key stays in the browser memory until the page is refreshed.
-When you click Test API Connectivity, the key is sent to the configured backend health endpoint.
-When you click Generate AI PDF Report with NVIDIA selected, the key is sent to the configured backend generate endpoint.
-```
-
-For production, do not rely on browser-pasted keys. Store keys on the backend.
-
-## Cloud API URL to Paste in the UI
-
-Use your deployed MVA backend URL:
-
-```text
-https://your-mva-api.example.com/health/nvidia
-```
-
-The **Generate AI PDF Report** button sends a request to `/generate/pdf`.
-
-When **NVIDIA NIM** is selected, or when the provider/model/base URL identifies NVIDIA, the backend:
-
-```text
-1. Loads the Remediation Guide prompt contract from docs/AI_PDF_GENERATION_PROMPT.md.
-2. Adds the selected tool source, target month, dashboard summary, and normalized rows.
-3. Sends that strict prompt to NVIDIA.
-4. Receives Remediation Guide Markdown from NVIDIA.
-5. Returns the generated Markdown to the UI/API caller.
-```
-
-The production backend should then render that Markdown into the approved PDF layout.
-
-## Production Pattern
-
-For production, use this pattern:
-
-```text
-React UI -> internal backend/API server -> NVIDIA/Groq/OpenRouter/local AI server
-```
-
-Do not use this pattern:
-
-```text
-React UI -> NVIDIA/Groq/OpenRouter directly with API key in browser
-```
-
-Reason:
-
-```text
-Browser-side keys are public keys. Anyone can extract them.
-```
-
-## GitHub Pages Limitation
-
-GitHub Pages only serves static files. It cannot safely store or call private API keys by itself.
-
-To make the AI PDF generation live for the team, deploy a backend service internally and store the API key as an environment variable on that server.
-
-Example backend environment:
-
-```text
-NVIDIA_API_KEY=...
-LOCAL_AI_SERVER_API_KEY=...
-```
-
-The React app should call only your backend endpoint, for example:
-
-```text
-POST https://your-internal-mva-server.company.local/api/generate-remediation-guide
-```
-
-The backend then calls NVIDIA or the selected AI provider.
+No output is the expected result.

@@ -10,15 +10,17 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import reportlab
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     PageBreak,
     Paragraph,
-    KeepTogether,
     SimpleDocTemplate,
     Spacer,
     Table,
@@ -33,9 +35,26 @@ CSV_PATH = ROOT / "samples" / "tenable_100_row" / "tenable_io_july_2026_100plus.
 
 PRIORITY_ORDER = {"P1": 0, "P2": 1, "P3": 2, "P4": 3}
 SEVERITY_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}
+FONT_REGULAR = "MVA-Vera"
+FONT_BOLD = "MVA-Vera-Bold"
+
+
+def register_fonts() -> None:
+    """Embed deterministic fonts so the report renders identically everywhere."""
+    font_dir = Path(reportlab.__file__).resolve().parent / "fonts"
+    pdfmetrics.registerFont(TTFont(FONT_REGULAR, str(font_dir / "Vera.ttf")))
+    pdfmetrics.registerFont(TTFont(FONT_BOLD, str(font_dir / "VeraBd.ttf")))
+    pdfmetrics.registerFontFamily(
+        FONT_REGULAR,
+        normal=FONT_REGULAR,
+        bold=FONT_BOLD,
+        italic=FONT_REGULAR,
+        boldItalic=FONT_BOLD,
+    )
 
 
 def main() -> None:
+    register_fonts()
     parser = argparse.ArgumentParser(description="Generate a customer-ready MVA Remediation Guide PDF.")
     parser.add_argument("--csv", default=str(CSV_PATH), help="Supported source CSV path")
     parser.add_argument("--output", default=str(OUT_PATH), help="Output PDF path")
@@ -66,6 +85,7 @@ def main() -> None:
         topMargin=18 * mm,
         bottomMargin=18 * mm,
         title="Remediation Guide",
+        pageCompression=0,
     )
 
     styles = build_styles()
@@ -88,7 +108,7 @@ def build_styles() -> dict[str, ParagraphStyle]:
         "title": ParagraphStyle(
             "title",
             parent=base["Title"],
-            fontName="Helvetica-Bold",
+            fontName=FONT_BOLD,
             fontSize=26,
             leading=32,
             textColor=colors.HexColor("#0f172a"),
@@ -98,7 +118,7 @@ def build_styles() -> dict[str, ParagraphStyle]:
         "subtitle": ParagraphStyle(
             "subtitle",
             parent=base["BodyText"],
-            fontName="Helvetica",
+            fontName=FONT_REGULAR,
             fontSize=10,
             leading=15,
             textColor=colors.HexColor("#475569"),
@@ -108,7 +128,7 @@ def build_styles() -> dict[str, ParagraphStyle]:
         "h1": ParagraphStyle(
             "h1",
             parent=base["Heading1"],
-            fontName="Helvetica-Bold",
+            fontName=FONT_BOLD,
             fontSize=16,
             leading=21,
             textColor=colors.HexColor("#0f172a"),
@@ -118,7 +138,7 @@ def build_styles() -> dict[str, ParagraphStyle]:
         "h2": ParagraphStyle(
             "h2",
             parent=base["Heading2"],
-            fontName="Helvetica-Bold",
+            fontName=FONT_BOLD,
             fontSize=12,
             leading=16,
             textColor=colors.HexColor("#075985"),
@@ -128,7 +148,7 @@ def build_styles() -> dict[str, ParagraphStyle]:
         "body": ParagraphStyle(
             "body",
             parent=base["BodyText"],
-            fontName="Helvetica",
+            fontName=FONT_REGULAR,
             fontSize=9,
             leading=13,
             textColor=colors.HexColor("#334155"),
@@ -137,10 +157,23 @@ def build_styles() -> dict[str, ParagraphStyle]:
         "small": ParagraphStyle(
             "small",
             parent=base["BodyText"],
-            fontName="Helvetica",
+            fontName=FONT_REGULAR,
             fontSize=8,
             leading=11,
             textColor=colors.HexColor("#64748b"),
+        ),
+        "meta": ParagraphStyle(
+            "meta",
+            parent=base["BodyText"],
+            fontName=FONT_REGULAR,
+            fontSize=8,
+            leading=11,
+            textColor=colors.HexColor("#475569"),
+            backColor=colors.HexColor("#f8fafc"),
+            borderColor=colors.HexColor("#cbd5e1"),
+            borderWidth=0.5,
+            borderPadding=6,
+            spaceAfter=2,
         ),
         "code": ParagraphStyle(
             "code",
@@ -149,6 +182,12 @@ def build_styles() -> dict[str, ParagraphStyle]:
             fontSize=7.5,
             leading=10,
             textColor=colors.HexColor("#e2e8f0"),
+            backColor=colors.HexColor("#0f172a"),
+            borderColor=colors.HexColor("#334155"),
+            borderWidth=0.7,
+            borderPadding=8,
+            spaceBefore=4,
+            spaceAfter=8,
         ),
     }
 
@@ -211,26 +250,31 @@ def summary_page(styles: dict[str, ParagraphStyle], findings: list) -> list:
 def remediation_actions(styles: dict[str, ParagraphStyle], actions: list[tuple[object, int, list[str]]]) -> list:
     story = [Paragraph("2. Remediation Actions", styles["h1"])]
     for index, (finding, affected_count, assets) in enumerate(actions, start=1):
+        # One action per page keeps long links, commands, and asset lists readable
+        # without relying on ReportLab's fragile large-block pagination.
+        if index > 1:
+            story.append(PageBreak())
         block = [Paragraph(f"{index}. {escape(finding.vulnerability_name)}", styles["h2"])]
         references = unique_links(finding.kb_links)
-        block.append(
-            detail_table(
+        block.extend(
+            metadata_block(
                 [
                     ["Affected Assets", f"{affected_count} findings across {len(assets)} assets"],
                     ["Asset Examples", ", ".join(assets[:5])],
                     ["Severity / Priority", f"{finding.severity} / {finding.patch_priority}"],
                     ["CVE", finding.cve or "N/A"],
-                    ["Advisory Links", reference_paragraph(references, styles["small"])],
                 ],
-                styles["small"],
+                styles["meta"],
             )
         )
+        block.append(Paragraph("<b>Advisory links</b>", styles["body"]))
+        block.append(reference_paragraph(references, styles["small"]))
         block.append(Paragraph("<b>Recommended remediation</b>", styles["body"]))
         block.append(Paragraph(escape(unique_remediation_text(finding.remediation)), styles["body"]))
         block.append(Paragraph("<b>Implementation and validation commands</b>", styles["body"]))
         block.append(command_box(styles["code"], command_for(finding)))
         block.append(Spacer(1, 5 * mm))
-        story.append(KeepTogether(block))
+        story.extend(block)
     return story
 
 
@@ -282,8 +326,8 @@ def kpi_table(rows: list[list[str]]) -> Table:
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
                 ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#cbd5e1")),
                 ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e2e8f0")),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("FONTNAME", (1, 0), (1, -1), "Helvetica-Bold"),
+                ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
+                ("FONTNAME", (1, 0), (1, -1), FONT_BOLD),
                 ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#0f172a")),
                 ("FONTSIZE", (0, 0), (-1, -1), 10),
                 ("ALIGN", (1, 0), (1, -1), "RIGHT"),
@@ -314,7 +358,7 @@ def distribution_table(label_title: str, labels: list[str], counts: Counter) -> 
             [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e0f2fe")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#075985")),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
                 ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#bae6fd")),
                 ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
                 ("ALIGN", (1, 1), (1, -1), "RIGHT"),
@@ -339,7 +383,7 @@ def detail_table(rows: list[list[object]], text_style: ParagraphStyle) -> Table:
                 ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f1f5f9")),
                 ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
                 ("INNERGRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#e2e8f0")),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#334155")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -349,22 +393,15 @@ def detail_table(rows: list[list[object]], text_style: ParagraphStyle) -> Table:
     return table
 
 
-def command_box(style: ParagraphStyle, command: str) -> Table:
-    para = Paragraph(escape(command).replace("\n", "<br/>"), style)
-    table = Table([[para]], colWidths=[160 * mm])
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0f172a")),
-                ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#334155")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 7),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-            ]
-        )
-    )
-    return table
+def metadata_block(rows: list[list[object]], style: ParagraphStyle) -> list[Paragraph]:
+    return [
+        Paragraph(f"<b>{escape(label)}:</b> {escape(value)}", style)
+        for label, value in rows
+    ]
+
+
+def command_box(style: ParagraphStyle, command: str) -> Paragraph:
+    return Paragraph(escape(command).replace("\n", "<br/>"), style)
 
 
 def command_for(finding) -> str:
@@ -426,7 +463,7 @@ def unique_remediation_text(value: str) -> str:
 def footer(canvas, doc) -> None:
     canvas.saveState()
     width, _ = A4
-    canvas.setFont("Helvetica", 8)
+    canvas.setFont(FONT_REGULAR, 8)
     canvas.setFillColor(colors.HexColor("#64748b"))
     canvas.drawString(18 * mm, 10 * mm, "Remediation Guide")
     canvas.drawRightString(width - 18 * mm, 10 * mm, f"Page {doc.page}")

@@ -2,6 +2,17 @@
 
 This repository includes ready-to-upload scanner exports and generated reference outputs for validating the MVA Unified Agent workflow.
 
+## Downloadable Packs
+
+```text
+output/sample-packs/MVA_All_Supported_Source_Samples.zip
+output/sample-packs/MVA_Tenable_SC_IO_4_Month_Samples.zip
+output/sample-packs/MVA_Qualys_Samples.zip
+output/sample-packs/MVA_CrowdStrike_Samples.zip
+```
+
+Every archive passes `unzip -t`. The all-sources pack contains every 100+ row Tenable.sc, Tenable.io, Qualys, and CrowdStrike scenario below.
+
 ## Tenable.sc Monthly Comparison
 
 Upload these four files together when testing same-source Tenable.sc month-over-month dashboards:
@@ -121,7 +132,7 @@ Final references:
 
 ```text
 output/excel/mva_crowdstrike_final_team_sample.xlsx
-output/pdf/mva_crowdstrike_final_remediation_guide.pdf
+output/pdf/mva_final_remediation_guide.pdf
 ```
 
 ## Adhoc Testing
@@ -141,7 +152,7 @@ samples/crowdstrike_100_row/crowdstrike_remediation_per_assets_july_2026_100plus
 The current industry-style remediation guide sample is:
 
 ```text
-output/pdf/mva_100plus_remediation_guide.pdf
+output/pdf/mva_final_remediation_guide.pdf
 ```
 
 ## CLI Validation Commands

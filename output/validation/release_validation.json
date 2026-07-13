@@ -3,13 +3,13 @@
   "checks_passed": 496,
   "checks_failed": 0,
   "checks_total": 496,
-  "elapsed_seconds": 5.714,
+  "elapsed_seconds": 4.083,
   "performance_80000_rows": {
     "rows": 80000,
     "csv_size_mb": 32.24,
-    "normalization_seconds": 3.385,
-    "dashboard_seconds": 0.415,
-    "total_seconds": 3.8
+    "normalization_seconds": 2.416,
+    "dashboard_seconds": 0.341,
+    "total_seconds": 2.757
   },
   "failures": []
 }

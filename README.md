@@ -52,13 +52,22 @@ The static site performs CSV comparison in the browser. Session-pasted provider 
 
 ## AI Provider
 
-The strongest current NVIDIA Build option in the selector is `nvidia/nemotron-3-ultra-550b-a55b`. NVIDIA lists it as a 550B-total/55B-active open model with up to 1M context, designed for frontier reasoning, complex agent workflows, tool use, and high-stakes RAG. NVIDIA provides a free prototype endpoint, but the hosted service is governed by API Trial Terms and should not be treated as unlimited production capacity.
+The report builder exposes four safe operating paths:
+
+- **OpenRouter - Nemotron 3 Ultra**: direct browser-compatible route using `nvidia/nemotron-3-ultra-550b-a55b:free`. This is the default cloud testing option.
+- **Groq - GPT OSS 120B**: fast production OpenAI-compatible route using `openai/gpt-oss-120b`.
+- **NVIDIA NIM - MVA Cloud Proxy**: uses `nvidia/nemotron-3-ultra-550b-a55b` through an organization-hosted HTTPS MVA API. NVIDIA Build does not allow this static frontend to call its API directly through browser CORS.
+- **Template PDF - No AI**: always-available local generation. No vulnerability data leaves the browser.
+
+Session-pasted keys live only in React memory, clear when providers change or the tab closes, and are never committed or included in reports. For an enterprise rollout, use the MVA Cloud API route so long-lived provider credentials stay server-side.
 
 Official evidence:
 
 - [NVIDIA Nemotron 3 Ultra Build page](https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b)
 - [NVIDIA Nemotron 3 Ultra model card](https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b/modelcard)
 - [NVIDIA model catalog](https://build.nvidia.com/nvidia)
+- [OpenRouter API quickstart](https://openrouter.ai/docs/quickstart)
+- [Groq supported production models](https://console.groq.com/docs/models)
 
 ## Validation
 
@@ -79,9 +88,13 @@ The release validators check every supplied CrowdStrike raw column, all export l
 - Test data and expected values: `SAMPLE_DATA.md`
 - CrowdStrike design and field mapping: `docs/CROWDSTRIKE_IMPLEMENTATION.md`
 - Complete rebuild handover: `docs/COMPLETE_RECREATE_HANDOVER.md`
+- Final production handover: `docs/FINAL_PRODUCTION_HANDOVER.md`
 - Architecture and stack: `docs/ARCHITECTURE_AND_STACK.md`
-- Final Excel sample: `output/excel/mva_crowdstrike_final_team_sample.xlsx`
-- Final PDF sample: `output/pdf/mva_crowdstrike_final_remediation_guide.pdf`
+- Final unified Excel sample: `output/excel/mva_unified_final_team_sample.xlsx`
+- Final CrowdStrike Excel sample: `output/excel/mva_crowdstrike_final_team_sample.xlsx`
+- Final PDF sample: `output/pdf/mva_final_remediation_guide.pdf`
+- All supported source samples: `output/sample-packs/MVA_All_Supported_Source_Samples.zip`
+- Individual source packs: `output/sample-packs/`
 
 ## MVA Report Schema
 
