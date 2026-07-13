@@ -1,6 +1,8 @@
 # MVA Unified Tool Complete Recreate Handover
 
-This is the canonical handover document for recreating the MVA Unified Tool from zero.
+> Release note, 14 July 2026: `docs/FINAL_PRODUCTION_HANDOVER.md` is the definitive current handover. This document preserves the detailed development history, but older provider names, pre-CrowdStrike status notes, and localhost API wording may describe earlier iterations.
+
+This is the historical granular handover document for recreating the MVA Unified Tool from zero.
 
 It is written for:
 

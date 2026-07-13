@@ -1,6 +1,8 @@
 # MVA Unified Tool Final Handoff and Testing Guide
 
-This file is the final handoff note for the current MVA Unified Tool build.
+> Release note, 14 July 2026: use `docs/FINAL_PRODUCTION_HANDOVER.md` as the definitive release handover. This file is retained for historical test/deployment detail.
+
+This file is a handoff note for an earlier MVA Unified Tool build.
 
 ## Live Links
 

@@ -22,6 +22,7 @@ const PRIORITY_COLORS = { P1: "#dc2626", P2: "#ea580c", P3: "#ca8a04", P4: "#16a
 const SEVERITY_COLORS = { Critical: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#22c55e", Info: "#0ea5e9", Unknown: "#64748b" };
 
 export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selectedMonth, onMonthChange }) {
+  const [exportStatus, setExportStatus] = useState({ state: "idle", message: "" });
   if (!analysis) return <MonthlyUploadGate selectedSource={selectedSource} onAnalyze={onAnalyze} />;
 
   const dashboard = analysis.dashboard;
@@ -42,7 +43,22 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
     .map(([label, value]) => ({ label, value, color: SEVERITY_COLORS[label], width: `${(value / total) * 100}%` }));
 
   const downloadExcel = async () => {
-    await downloadAnalysisWorkbook(analysis);
+    setExportStatus({ state: "loading", message: "Building the Excel report..." });
+    try {
+      await downloadAnalysisWorkbook(analysis);
+      setExportStatus({ state: "success", message: "Excel report generated and downloaded." });
+    } catch (error) {
+      setExportStatus({ state: "error", message: error.message || "Excel export failed." });
+    }
+  };
+
+  const downloadCsv = () => {
+    try {
+      downloadNormalizedCsv(analysis);
+      setExportStatus({ state: "success", message: "Normalized CSV generated and downloaded." });
+    } catch (error) {
+      setExportStatus({ state: "error", message: error.message || "CSV export failed." });
+    }
   };
 
   return (
@@ -54,11 +70,11 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
           <p className="mt-1 text-sm font-semibold text-slate-400">{analysis.sourceLabel} | {analysis.snapshots.length} validated monthly CSV exports</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={downloadExcel} className="ghost-button flex items-center gap-2 py-3">
+          <button type="button" onClick={downloadExcel} disabled={exportStatus.state === "loading"} className="ghost-button flex items-center gap-2 py-3 disabled:cursor-wait disabled:opacity-50">
             <Download className="h-4 w-4" />
-            Download Excel Report
+            {exportStatus.state === "loading" ? "Building Excel..." : "Download Excel Report"}
           </button>
-          <button type="button" onClick={() => downloadNormalizedCsv(analysis)} className="ghost-button flex items-center gap-2 py-3">
+          <button type="button" onClick={downloadCsv} disabled={exportStatus.state === "loading"} className="ghost-button flex items-center gap-2 py-3 disabled:opacity-50">
             <Table2 className="h-4 w-4" />
             Normalized CSV
           </button>
@@ -68,6 +84,12 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
           </a>
         </div>
       </div>
+
+      {exportStatus.message && (
+        <div aria-live="polite" className={`mb-5 rounded-2xl border px-4 py-3 text-xs font-bold ${exportStatus.state === "error" ? "border-red-300/25 bg-red-400/10 text-red-200" : exportStatus.state === "success" ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-cyan-300/25 bg-cyan-400/10 text-cyan-200"}`}>
+          Export status: {exportStatus.message}
+        </div>
+      )}
 
       <div className="mb-5 rounded-2xl border border-cyan-300/15 bg-slate-900/70 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
