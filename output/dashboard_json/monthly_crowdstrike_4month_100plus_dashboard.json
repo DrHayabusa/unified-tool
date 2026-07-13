@@ -1,0 +1,165 @@
+{
+  "trend_discovered_last_3_months": [
+    {
+      "month": "May 2026",
+      "discovered_count": 30
+    },
+    {
+      "month": "June 2026",
+      "discovered_count": 25
+    },
+    {
+      "month": "July 2026",
+      "discovered_count": 20
+    }
+  ],
+  "trend_remediated_last_3_months": [
+    {
+      "month": "May 2026",
+      "remediated_count": 20
+    },
+    {
+      "month": "June 2026",
+      "remediated_count": 20
+    },
+    {
+      "month": "July 2026",
+      "remediated_count": 25
+    }
+  ],
+  "total_open_vulnerabilities": {
+    "total_open": 120,
+    "new_vulnerabilities": 20,
+    "not_closed_from_previous_months": 100
+  },
+  "total_open_by_patch_priority": {
+    "P1": 24,
+    "P2": 59,
+    "P3": 18,
+    "P4": 19
+  },
+  "total_open_by_age_and_patch_priority": {
+    "P1": {
+      ">7 days": 24,
+      ">30 days": 19,
+      ">60 days": 15,
+      ">180 days (6+ months)": 3
+    },
+    "P2": {
+      ">7 days": 59,
+      ">30 days": 51,
+      ">60 days": 36,
+      ">180 days (6+ months)": 7
+    },
+    "P3": {
+      ">7 days": 18,
+      ">30 days": 14,
+      ">60 days": 11,
+      ">180 days (6+ months)": 2
+    },
+    "P4": {
+      ">7 days": 19,
+      ">30 days": 16,
+      ">60 days": 13,
+      ">180 days (6+ months)": 3
+    }
+  },
+  "total_vulnerabilities_patched_last_month": {
+    "previous_month": "June 2026",
+    "current_month": "July 2026",
+    "previous_month_open": 125,
+    "new_vulnerabilities_identified_this_month": 20,
+    "current_month_open": 120,
+    "patched_count": 25,
+    "patched_count_by_key_diff": 25,
+    "formula": "previous_month_open + new_vulnerabilities_identified_this_month - current_month_open"
+  },
+  "uploaded_months": [
+    "April 2026",
+    "May 2026",
+    "June 2026",
+    "July 2026"
+  ],
+  "crowdstrike_insights": {
+    "exploit_available": 47,
+    "cisa_kev": 11,
+    "internet_exposed": 24,
+    "critical_assets": 12,
+    "top_products": [
+      {
+        "product": "Apache Log4j",
+        "vulnerability_count": 15
+      },
+      {
+        "product": "OpenSSL",
+        "vulnerability_count": 15
+      },
+      {
+        "product": "Apache Tomcat",
+        "vulnerability_count": 15
+      },
+      {
+        "product": "Google Chrome",
+        "vulnerability_count": 15
+      },
+      {
+        "product": "Cisco IOS XE",
+        "vulnerability_count": 15
+      },
+      {
+        "product": "Linux Kernel",
+        "vulnerability_count": 15
+      },
+      {
+        "product": "Microsoft Exchange Server",
+        "vulnerability_count": 15
+      },
+      {
+        "product": "Microsoft Windows Server",
+        "vulnerability_count": 15
+      }
+    ],
+    "top_assets": [
+      {
+        "asset": "cs-asset-021.corp.example",
+        "vulnerability_count": 3
+      },
+      {
+        "asset": "cs-asset-022.corp.example",
+        "vulnerability_count": 3
+      },
+      {
+        "asset": "cs-asset-023.corp.example",
+        "vulnerability_count": 3
+      },
+      {
+        "asset": "cs-asset-024.corp.example",
+        "vulnerability_count": 3
+      },
+      {
+        "asset": "cs-asset-025.corp.example",
+        "vulnerability_count": 3
+      },
+      {
+        "asset": "cs-asset-026.corp.example",
+        "vulnerability_count": 3
+      },
+      {
+        "asset": "cs-asset-027.corp.example",
+        "vulnerability_count": 3
+      },
+      {
+        "asset": "cs-asset-028.corp.example",
+        "vulnerability_count": 3
+      },
+      {
+        "asset": "cs-asset-029.corp.example",
+        "vulnerability_count": 3
+      },
+      {
+        "asset": "cs-asset-030.corp.example",
+        "vulnerability_count": 3
+      }
+    ]
+  }
+}

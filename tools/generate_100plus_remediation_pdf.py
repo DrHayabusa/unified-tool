@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import sys
 from collections import Counter
 from pathlib import Path
@@ -35,7 +36,15 @@ SEVERITY_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}
 
 
 def main() -> None:
-    findings = load_findings(CSV_PATH)
+    parser = argparse.ArgumentParser(description="Generate a customer-ready MVA Remediation Guide PDF.")
+    parser.add_argument("--csv", default=str(CSV_PATH), help="Supported source CSV path")
+    parser.add_argument("--output", default=str(OUT_PATH), help="Output PDF path")
+    parser.add_argument("--source-label", default="", help="Customer-facing tool source")
+    parser.add_argument("--report-month", default="July 2026", help="Customer-facing report month")
+    parser.add_argument("--max-actions", type=int, default=12, help="Maximum remediation action sections")
+    args = parser.parse_args()
+
+    findings = load_findings(args.csv)
     findings = sorted(
         findings,
         key=lambda finding: (
@@ -46,9 +55,11 @@ def main() -> None:
         ),
     )
 
-    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    source_label = args.source_label or source_label_for(findings)
     doc = SimpleDocTemplate(
-        str(OUT_PATH),
+        str(output_path),
         pagesize=A4,
         rightMargin=18 * mm,
         leftMargin=18 * mm,
@@ -59,14 +70,16 @@ def main() -> None:
 
     styles = build_styles()
     story = []
-    story.extend(cover(styles, findings))
+    story.extend(cover(styles, findings, source_label, args.report_month))
     story.append(PageBreak())
     story.extend(summary_page(styles, findings))
     story.append(PageBreak())
-    story.extend(remediation_actions(styles, findings[:12]))
+    story.extend(remediation_actions(styles, group_remediation_actions(findings)[: args.max_actions]))
+    story.append(PageBreak())
+    story.extend(validation_expectations(styles))
 
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
-    print(OUT_PATH)
+    print(output_path)
 
 
 def build_styles() -> dict[str, ParagraphStyle]:
@@ -140,17 +153,17 @@ def build_styles() -> dict[str, ParagraphStyle]:
     }
 
 
-def cover(styles: dict[str, ParagraphStyle], findings: list) -> list:
-    total = len(findings)
-    critical = sum(1 for finding in findings if finding.severity == "Critical")
-    high = sum(1 for finding in findings if finding.severity == "High")
-    immediate = sum(1 for finding in findings if finding.patch_priority in {"P1", "P2"})
-    exploitable = sum(1 for finding in findings if finding.exploit_available)
+def cover(styles: dict[str, ParagraphStyle], findings: list, source_label: str, report_month: str) -> list:
+    total = sum(finding.record_count for finding in findings)
+    critical = sum(finding.record_count for finding in findings if finding.severity == "Critical")
+    high = sum(finding.record_count for finding in findings if finding.severity == "High")
+    immediate = sum(finding.record_count for finding in findings if finding.patch_priority in {"P1", "P2"})
+    exploitable = sum(finding.record_count for finding in findings if finding.exploit_available)
 
     return [
         Spacer(1, 30 * mm),
         Paragraph("Remediation Guide", styles["title"]),
-        Paragraph("Tool Source: Tenable.io | Report Month: July 2026", styles["subtitle"]),
+        Paragraph(f"Tool Source: {escape(source_label)} | Report Month: {escape(report_month)}", styles["subtitle"]),
         kpi_table(
             [
                 ["Total Findings", str(total)],
@@ -167,51 +180,98 @@ def cover(styles: dict[str, ParagraphStyle], findings: list) -> list:
 
 
 def summary_page(styles: dict[str, ParagraphStyle], findings: list) -> list:
-    priority_counts = Counter(finding.patch_priority for finding in findings)
-    severity_counts = Counter(finding.severity for finding in findings)
+    priority_counts = Counter()
+    severity_counts = Counter()
+    for finding in findings:
+        priority_counts[finding.patch_priority] += finding.record_count
+        severity_counts[finding.severity] += finding.record_count
 
     return [
         Paragraph("1. Report Summary", styles["h1"]),
         Paragraph(
             "This guide prioritizes remediation work using the approved MVA severity and exploit availability matrix. "
-            "P1 and P2 items should be handled first because they represent the immediate remediation lane.",
+            "P1 and P2 items should be handled first because they represent the highest remediation priority.",
             styles["body"],
         ),
         Paragraph("Priority Distribution", styles["h2"]),
-        distribution_table(["P1", "P2", "P3", "P4"], priority_counts),
+        distribution_table("Priority", ["P1", "P2", "P3", "P4"], priority_counts),
         Spacer(1, 8 * mm),
         Paragraph("Severity Distribution", styles["h2"]),
-        distribution_table(["Critical", "High", "Medium", "Low"], severity_counts),
+        distribution_table("Severity", ["Critical", "High", "Medium", "Low"], severity_counts),
         Spacer(1, 8 * mm),
         Paragraph("Remediation Execution Notes", styles["h2"]),
         Paragraph(
-            "Validate a maintenance window for service-impacting changes, keep rollback evidence, apply fixes by priority lane, "
+            "Validate a maintenance window for service-impacting changes, keep rollback evidence, apply fixes by priority, "
             "and confirm closure with a follow-up scan after the change window.",
             styles["body"],
         ),
     ]
 
 
-def remediation_actions(styles: dict[str, ParagraphStyle], findings: list) -> list:
+def remediation_actions(styles: dict[str, ParagraphStyle], actions: list[tuple[object, int, list[str]]]) -> list:
     story = [Paragraph("2. Remediation Actions", styles["h1"])]
-    for index, finding in enumerate(findings, start=1):
+    for index, (finding, affected_count, assets) in enumerate(actions, start=1):
         block = [Paragraph(f"{index}. {escape(finding.vulnerability_name)}", styles["h2"])]
+        references = unique_links(finding.kb_links)
         block.append(
             detail_table(
                 [
-                    ["Asset", finding.dns_name or finding.ip_address],
-                    ["IP / Port", f"{finding.ip_address}:{finding.port}/{finding.protocol}"],
+                    ["Affected Assets", f"{affected_count} findings across {len(assets)} assets"],
+                    ["Asset Examples", ", ".join(assets[:5])],
                     ["Severity / Priority", f"{finding.severity} / {finding.patch_priority}"],
                     ["CVE", finding.cve or "N/A"],
-                    ["KB Link", finding.kb_links or "N/A"],
-                ]
+                    ["Advisory Links", reference_paragraph(references, styles["small"])],
+                ],
+                styles["small"],
             )
         )
-        block.append(Paragraph(escape(finding.remediation), styles["body"]))
+        block.append(Paragraph("<b>Recommended remediation</b>", styles["body"]))
+        block.append(Paragraph(escape(unique_remediation_text(finding.remediation)), styles["body"]))
+        block.append(Paragraph("<b>Implementation and validation commands</b>", styles["body"]))
         block.append(command_box(styles["code"], command_for(finding)))
         block.append(Spacer(1, 5 * mm))
         story.append(KeepTogether(block))
     return story
+
+
+def validation_expectations(styles: dict[str, ParagraphStyle]) -> list:
+    return [
+        Paragraph("3. Validation Expectations", styles["h1"]),
+        Paragraph(
+            "Use these controls for every remediation action. Product-specific vendor instructions and approved change procedures take precedence over example commands in this guide.",
+            styles["body"],
+        ),
+        detail_table(
+            [
+                ["Before change", "Record the installed version, affected service state, maintenance window, backup or rollback method, and approved change reference."],
+                ["After change", "Confirm the fixed version, required service restart or host reboot, application health, and business-owner acceptance."],
+                ["Security validation", "Run a fresh authenticated scan, verify the finding is absent, retain scanner evidence, and investigate any recurrence."],
+                ["Exception handling", "Document owner, compensating controls, target date, and formal risk acceptance when remediation cannot be completed."],
+            ],
+            styles["small"],
+        ),
+        Spacer(1, 8 * mm),
+        Paragraph("Required Evidence", styles["h2"]),
+        Paragraph(
+            "Attach pre-change and post-change version output, implementation logs, restart or reboot confirmation, application validation, and the follow-up scan result to the change record.",
+            styles["body"],
+        ),
+    ]
+
+
+def group_remediation_actions(findings: list) -> list[tuple[object, int, list[str]]]:
+    groups: dict[str, dict[str, object]] = {}
+    for finding in findings:
+        key = (finding.cve or finding.vulnerability_name or finding.source_vulnerability_id).strip().upper()
+        group = groups.setdefault(key, {"finding": finding, "count": 0, "assets": set()})
+        group["count"] += finding.record_count
+        asset = finding.dns_name or finding.ip_address
+        if asset:
+            group["assets"].add(asset)
+    return [
+        (group["finding"], int(group["count"]), sorted(group["assets"]))
+        for group in groups.values()
+    ]
 
 
 def kpi_table(rows: list[list[str]]) -> Table:
@@ -246,8 +306,8 @@ def contents_table() -> Table:
     )
 
 
-def distribution_table(labels: list[str], counts: Counter) -> Table:
-    rows = [["Lane", "Count"]] + [[label, str(counts.get(label, 0))] for label in labels]
+def distribution_table(label_title: str, labels: list[str], counts: Counter) -> Table:
+    rows = [[label_title, "Count"]] + [[label, str(counts.get(label, 0))] for label in labels]
     table = Table(rows, colWidths=[85 * mm, 45 * mm])
     table.setStyle(
         TableStyle(
@@ -267,8 +327,12 @@ def distribution_table(labels: list[str], counts: Counter) -> Table:
     return table
 
 
-def detail_table(rows: list[list[str]]) -> Table:
-    table = Table(rows, colWidths=[36 * mm, 124 * mm])
+def detail_table(rows: list[list[object]], text_style: ParagraphStyle) -> Table:
+    normalized_rows = [
+        [Paragraph(escape(label), text_style), value if isinstance(value, Paragraph) else Paragraph(escape(value), text_style)]
+        for label, value in rows
+    ]
+    table = Table(normalized_rows, colWidths=[36 * mm, 124 * mm])
     table.setStyle(
         TableStyle(
             [
@@ -306,16 +370,57 @@ def command_box(style: ParagraphStyle, command: str) -> Table:
 def command_for(finding) -> str:
     name = finding.vulnerability_name.lower()
     if "log4j" in name:
-        return "find /opt -name 'log4j-core-*.jar' -print\n# upgrade application dependency to fixed Log4j release\nsystemctl restart <affected-service>"
+        return "find /opt -name 'log4j-core-*.jar' -print\n# replace the vulnerable JAR through the approved application release\nsudo systemctl restart <affected-service>\nfind /opt -name 'log4j-core-*.jar' -print"
     if "tomcat" in name:
-        return "grep -R \"protocol=\\\"AJP\" /opt/tomcat/conf/server.xml\n# disable AJP or configure requiredSecret\nsystemctl restart tomcat"
+        return "/opt/tomcat/bin/version.sh\ngrep -n 'Connector.*AJP' /opt/tomcat/conf/server.xml\n# upgrade Tomcat and disable unused AJP or require a secret\nsudo systemctl restart tomcat\n/opt/tomcat/bin/version.sh"
     if "sql server" in name:
         return "SELECT @@VERSION;\n# upgrade to a supported SQL Server release or migrate workload\n# run validation scan after maintenance window"
     if "openssl" in name:
-        return "openssl version -a\n# apply vendor OpenSSL package update\nsystemctl restart <affected-service>"
+        return "openssl version -a\nsudo apt-get update\nsudo apt-get install --only-upgrade openssl\nsudo systemctl restart <affected-service>\nopenssl version -a"
     if "remote desktop" in name:
-        return "gpupdate /force\n# enforce strong RDP encryption via Group Policy\n# reconnect and validate negotiated security layer"
+        return "Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 10\n# install the approved Microsoft security update and reboot if required\nGet-Service TermServLicensing\nGet-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 10"
+    if "chrome" in name:
+        return "winget upgrade --id Google.Chrome --exact --silent --accept-source-agreements --accept-package-agreements\n(Get-Item 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe').VersionInfo.FileVersion"
+    if "linux kernel" in name:
+        return "uname -r\nsudo apt-get update\nsudo apt-get install --only-upgrade linux-image-generic\nsudo reboot\n# after reboot\nuname -r"
+    if "cisco ios xe" in name:
+        return "show version\nshow running-config | include ^ip http\n# stage and activate the vendor-fixed IOS XE image under the approved network change\nshow version"
+    if "exchange" in name:
+        return "Get-ExchangeServer | Format-List Name,Edition,AdminDisplayVersion\n# install the approved Exchange Security Update and reboot if required\nGet-ExchangeServer | Format-List Name,Edition,AdminDisplayVersion"
     return "# apply vendor security update\n# restart affected service if required\n# rerun vulnerability scan and confirm closure"
+
+
+def unique_links(value: str) -> list[str]:
+    links = []
+    seen = set()
+    for raw in str(value or "").replace(",", "|").split("|"):
+        link = raw.strip()
+        if link.startswith(("http://", "https://")) and link not in seen:
+            seen.add(link)
+            links.append(link)
+    return links
+
+
+def reference_paragraph(links: list[str], style: ParagraphStyle) -> Paragraph:
+    if not links:
+        return Paragraph("N/A", style)
+    markup = "<br/>".join(
+        f'<link href="{escape(link)}" color="#075985">{escape(link)}</link>'
+        for link in links
+    )
+    return Paragraph(markup, style)
+
+
+def unique_remediation_text(value: str) -> str:
+    segments = []
+    seen = set()
+    for raw in str(value or "").split("|"):
+        segment = " ".join(raw.split())
+        key = segment.lower()
+        if segment and key not in seen:
+            seen.add(key)
+            segments.append(segment)
+    return " ".join(segments) or "Follow the vendor advisory and apply the supported security update."
 
 
 def footer(canvas, doc) -> None:
@@ -331,6 +436,19 @@ def footer(canvas, doc) -> None:
 def escape(value: object) -> str:
     text = "" if value is None else str(value)
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def source_label_for(findings: list) -> str:
+    sources = {finding.source_tool for finding in findings}
+    labels = {
+        "tenable_sc": "Tenable.sc",
+        "tenable_io": "Tenable.io",
+        "qualys_monthly": "Qualys",
+        "qualys_adhoc": "Qualys",
+        "crowdstrike_vulnerabilities": "CrowdStrike",
+        "crowdstrike_remediation_assets": "CrowdStrike",
+    }
+    return " + ".join(sorted({labels.get(source, source) for source in sources})) or "MVA"
 
 
 if __name__ == "__main__":

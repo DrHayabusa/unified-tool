@@ -1,8 +1,28 @@
 import { Line, LineChart, ResponsiveContainer } from "recharts";
 import { ShieldAlert } from "lucide-react";
-import { metricCards } from "../data/dashboardData.js";
 
-export function MetricsRow() {
+const colors = {
+  "Total Open": "#14b8a6",
+  Critical: "#ef4444",
+  High: "#f97316",
+  Medium: "#facc15",
+  Low: "#22c55e",
+  "Immediate Patch Needed": "#22d3ee",
+};
+
+export function MetricsRow({ dashboard }) {
+  const total = dashboard?.totalVulnerabilities ?? 0;
+  const counts = dashboard?.severityCounts ?? {};
+  const immediate = (dashboard?.patchPriorityCounts?.P1 ?? 0) + (dashboard?.patchPriorityCounts?.P2 ?? 0);
+  const metricCards = [
+    ["Total Open", total, `${dashboard?.distinctAssets ?? 0} affected assets`],
+    ["Critical", counts.Critical ?? 0, share(counts.Critical, total)],
+    ["High", counts.High ?? 0, share(counts.High, total)],
+    ["Medium", counts.Medium ?? 0, share(counts.Medium, total)],
+    ["Low", counts.Low ?? 0, share(counts.Low, total)],
+    ["Immediate Patch Needed", immediate, "P1 + P2"],
+  ].map(([label, value, helper]) => ({ label, value, helper, color: colors[label], data: microSeries(value) }));
+
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
       {metricCards.map((metric) => {
@@ -43,4 +63,13 @@ export function MetricsRow() {
       })}
     </section>
   );
+}
+
+function share(value = 0, total = 0) {
+  return total ? `${((value / total) * 100).toFixed(1)}% of total` : "0% of total";
+}
+
+function microSeries(value) {
+  const factors = [0.72, 0.78, 0.75, 0.84, 0.82, 0.9, 0.86, 0.94, 0.91, 0.97, 0.95, 1];
+  return factors.map((factor) => Math.max(0, Math.round(Number(value || 0) * factor)));
 }

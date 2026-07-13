@@ -1,0 +1,11 @@
+{
+  "input": "output/excel/mva_crowdstrike_final_team_sample.xlsx",
+  "outputDir": "output/validation/workbook",
+  "sheets": [
+    "Executive Dashboard",
+    "Monthly Dashboard",
+    "Adhoc Dashboard"
+  ],
+  "formulaErrorMatches": 0,
+  "status": "PASS"
+}

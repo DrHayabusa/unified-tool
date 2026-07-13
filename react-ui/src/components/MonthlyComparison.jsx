@@ -1,6 +1,7 @@
 import {
   Bar,
   BarChart,
+  Cell,
   CartesianGrid,
   Legend,
   Line,
@@ -10,493 +11,271 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useEffect, useState } from "react";
-import { BrainCircuit, CalendarRange, Download, FileSpreadsheet, UploadCloud } from "lucide-react";
-import {
-  monthOptions as defaultMonthOptions,
-  monthlyDashboardMetrics,
-  monthlyDashboardRows,
-  monthlyOpenTrend,
-  monthlySeverityTrend,
-} from "../data/dashboardData.js";
+import { useState } from "react";
+import { BrainCircuit, CalendarRange, Download, FileSpreadsheet, Table2, UploadCloud } from "lucide-react";
+import { AGE_BUCKETS, extractMonthFromFilename } from "../lib/vulnerabilityEngine.js";
+import { downloadAnalysisWorkbook, downloadNormalizedCsv } from "../lib/reportExport.js";
+import { loadBundledSamples } from "../data/sampleFiles.js";
 import { AiReportBuilder } from "./AiReportBuilder.jsx";
 
-const severitySegments = [
-  { label: "Critical", value: 31, color: "bg-red-500", width: "24.8%" },
-  { label: "High", value: 31, color: "bg-orange-400", width: "24.8%" },
-  { label: "Medium", value: 31, color: "bg-yellow-300", width: "24.8%" },
-  { label: "Low", value: 32, color: "bg-emerald-400", width: "25.6%" },
-];
+const PRIORITY_COLORS = { P1: "#dc2626", P2: "#ea580c", P3: "#ca8a04", P4: "#16a34a" };
+const SEVERITY_COLORS = { Critical: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#22c55e", Info: "#0ea5e9", Unknown: "#64748b" };
 
-const tabs = ["Trends", "Priority & Aging", "Remediated", "Assets", "Queue", "Explorer"];
+export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selectedMonth, onMonthChange }) {
+  if (!analysis) return <MonthlyUploadGate selectedSource={selectedSource} onAnalyze={onAnalyze} />;
 
-const tenableMonthlyApproaches = {
-  "tenable-sc": [
-    {
-      id: "sc-only",
-      title: "Tenable.sc multi-month",
-      badge: "SC only",
-      body: "Upload two or more Tenable.sc monthly exports when the customer stayed on Security Center for the full period.",
-      example: "April SC + May SC + June SC + July SC",
-    },
-    {
-      id: "mixed-sc-io",
-      title: "SC to IO migration compare",
-      badge: "Mixed SC + IO",
-      body: "Upload monthly exports across both formats when older months are SC and newer months are IO. MVA normalizes both before comparing.",
-      example: "April SC + May SC + June IO + July IO",
-    },
-  ],
-  "tenable-io": [
-    {
-      id: "io-only",
-      title: "Tenable.io multi-month",
-      badge: "IO only",
-      body: "Upload two or more Tenable.io monthly exports when all reporting months came from Vulnerability Management.",
-      example: "April IO + May IO + June IO + July IO",
-    },
-    {
-      id: "mixed-sc-io",
-      title: "IO with historical SC",
-      badge: "Mixed SC + IO",
-      body: "Use this when the current month is IO but prior baseline months came from Security Center. Finding keys are normalized across both.",
-      example: "May SC + June IO + July IO",
-    },
-  ],
-};
+  const dashboard = analysis.dashboard;
+  const monthOptions = dashboard.uploadedMonths;
+  const open = dashboard.totalOpenVulnerabilities;
+  const patched = dashboard.totalVulnerabilitiesPatchedLastMonth;
+  const total = open.totalOpen || 1;
+  const ageChartData = AGE_BUCKETS.map((bucket) => ({
+    bucket: bucket.replace(" (6+ months)", ""),
+    P1: dashboard.totalOpenByAgeAndPatchPriority.P1[bucket],
+    P2: dashboard.totalOpenByAgeAndPatchPriority.P2[bucket],
+    P3: dashboard.totalOpenByAgeAndPatchPriority.P3[bucket],
+    P4: dashboard.totalOpenByAgeAndPatchPriority.P4[bucket],
+  }));
+  const priorityData = Object.entries(dashboard.totalOpenByPatchPriority).map(([priority, count]) => ({ priority, count, fill: PRIORITY_COLORS[priority] }));
+  const severitySegments = Object.entries(dashboard.currentSeverityCounts)
+    .filter(([, count]) => count > 0)
+    .map(([label, value]) => ({ label, value, color: SEVERITY_COLORS[label], width: `${(value / total) * 100}%` }));
 
-const defaultMonthlyApproaches = [
-  {
-    id: "same-source",
-    title: "Same-source multi-month",
-    badge: "2+ months",
-    body: "Upload two or more monthly exports from the selected scanner. MVA sorts months and compares the latest two for patched/new/open logic.",
-    example: "April + May + June + July",
-  },
-  {
-    id: "migration",
-    title: "Migration / mixed export compare",
-    badge: "Auto detect",
-    body: "Use when month files come from different export formats that map into the same normalized MVA schema.",
-    example: "Older source + newer source",
-  },
-];
-
-export function MonthlyComparison({ uploaded, onUpload, selectedSource, selectedMonth, onMonthChange, monthOptions, detectedFileCount, onFilesReady }) {
-  if (!uploaded) {
-    return <MonthlyUploadGate onUpload={onUpload} selectedSource={selectedSource} detectedFileCount={detectedFileCount} onFilesReady={onFilesReady} />;
-  }
+  const downloadExcel = async () => {
+    await downloadAnalysisWorkbook(analysis);
+  };
 
   return (
     <section className="rounded-[1.75rem] border border-cyan-300/15 bg-slate-950/80 p-5 shadow-cyber backdrop-blur-xl">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="mini-label text-emerald-300">Monthly Comparison Dashboard</p>
-          <h2 className="mt-1 text-2xl font-black text-white">April 2026 - July 2026</h2>
-          <p className="mt-1 text-sm font-semibold text-slate-400">
-            Multi-month CSV comparison: open, new, patched, priority, aging, and trend movement.
-          </p>
+          <p className="mini-label text-emerald-300">Monthly Comparison Report</p>
+          <h2 className="mt-1 text-2xl font-black text-white">{dashboard.reportRange}</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-400">{analysis.sourceLabel} | {analysis.snapshots.length} validated monthly CSV exports</p>
         </div>
-
         <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 py-2">
-            <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">PDF Month</span>
-            <select
-              value={selectedMonth}
-              onChange={(event) => onMonthChange(event.target.value)}
-              className="bg-transparent py-1 text-sm font-bold text-slate-200 outline-none"
-            >
-              {monthOptions.map((month) => (
-                <option key={month}>{month}</option>
-              ))}
-            </select>
-          </label>
-          <button type="button" className="ghost-button flex items-center gap-2 py-3">
+          <button type="button" onClick={downloadExcel} className="ghost-button flex items-center gap-2 py-3">
             <Download className="h-4 w-4" />
-            Download Excel
+            Download Excel Report
           </button>
-          <button type="button" className="neon-button flex items-center gap-2 py-3">
+          <button type="button" onClick={() => downloadNormalizedCsv(analysis)} className="ghost-button flex items-center gap-2 py-3">
+            <Table2 className="h-4 w-4" />
+            Normalized CSV
+          </button>
+          <a href="#ai-report-builder" className="neon-button flex items-center gap-2 py-3">
             <BrainCircuit className="h-4 w-4" />
-            Generate AI Remediation PDF
-          </button>
+            Generate Remediation PDF
+          </a>
         </div>
       </div>
 
-      <div className="mb-4 rounded-2xl border border-cyan-300/15 bg-slate-900/70 p-4">
+      <div className="mb-5 rounded-2xl border border-cyan-300/15 bg-slate-900/70 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-emerald-300">
-            OK: 4 reports, 125 open in July 2026, 30 new, 25 patched
+          <p className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">
+            {open.totalOpen.toLocaleString()} open | {open.newVulnerabilities.toLocaleString()} new | {patched.patchedCount.toLocaleString()} patched
           </p>
-          <p className="text-xs font-bold text-slate-500">Severity distribution</p>
+          <p className="text-xs font-bold text-slate-500">Current report severity distribution</p>
         </div>
         <div className="flex h-3 overflow-hidden rounded-full bg-slate-800">
-          {severitySegments.map((segment) => (
-            <div key={segment.label} className={segment.color} style={{ width: segment.width }} />
-          ))}
+          {severitySegments.map((segment) => <div key={segment.label} style={{ width: segment.width, backgroundColor: segment.color }} />)}
         </div>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-slate-400">
           {severitySegments.map((segment) => (
-            <span key={segment.label}>
-              <span className={`mr-2 inline-block h-2 w-2 rounded-full ${segment.color}`} />
-              {segment.label} {segment.value}
-            </span>
+            <span key={segment.label}><span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: segment.color }} />{segment.label} {segment.value}</span>
           ))}
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
-        {monthlyDashboardMetrics.map((metric) => (
-          <article key={metric.label} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
-            <p className="font-mono text-[0.65rem] font-bold uppercase tracking-[0.15em] text-slate-500">{metric.label}</p>
-            <p className="mt-2 text-3xl font-black tracking-[-0.05em]" style={{ color: metric.color }}>
-              {metric.value}
-            </p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">{metric.helper}</p>
-          </article>
-        ))}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Kpi label="Total Open Vulnerabilities" value={open.totalOpen} helper={`${open.newVulnerabilities} new + ${open.notClosedFromPreviousMonths} not closed`} color="#14b8a6" />
+        <Kpi label="Immediate Patch Needed" value={(dashboard.totalOpenByPatchPriority.P1 ?? 0) + (dashboard.totalOpenByPatchPriority.P2 ?? 0)} helper="P1 + P2" color="#ef4444" />
+        <Kpi label="Patched Last Month" value={patched.patchedCount} helper={`${patched.previousMonth} to ${patched.currentMonth}`} color="#22c55e" />
+        <Kpi label="Files Compared" value={analysis.snapshots.length} helper={dashboard.uploadedMonths.join(" | ")} color="#38bdf8" />
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_420px]">
-        <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <FileSpreadsheet className="h-6 w-6 text-emerald-300" />
-            <div>
-              <p className="mini-label">Generated Report Outputs</p>
-              <h3 className="text-xl font-black text-white">Excel dashboard + AI remediation guide</h3>
-            </div>
-          </div>
-          <p className="max-w-4xl text-sm font-semibold leading-6 text-slate-400">
-            The monthly workflow creates the Excel dashboard from local CSV comparison first. After selecting the target month, the normalized findings can be sent to the selected AI provider or local AI server to generate the Remediation Guide PDF.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4">
-              <p className="font-black text-emerald-200">Excel report</p>
-              <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">Monthly trends, open counts, patch priority, age buckets, and patched-last-month logic.</p>
-            </div>
-            <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4">
-              <p className="font-black text-cyan-200">AI PDF report</p>
-              <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">Target-month remediation guide generated through the selected AI server route.</p>
-            </div>
-          </div>
-        </article>
-
-        <AiReportBuilder selectedMonth={selectedMonth} onMonthChange={onMonthChange} monthOptions={monthOptions} workflow="monthly" />
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2 border-b border-white/10">
-        {tabs.map((tab, index) => (
-          <button
-            key={tab}
-            type="button"
-            className={`px-3 py-3 text-xs font-bold transition ${
-              index === 0 ? "border-b-2 border-emerald-400 text-emerald-300" : "text-slate-500 hover:text-slate-200"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <ChartPanel title="Severity Trend">
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={monthlySeverityTrend} margin={{ top: 8, right: 16, bottom: 0, left: -12 }}>
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <ChartPanel number="1" title="Vulnerabilities Discovered - Last 3 Months" subtitle="New findings first observed in each uploaded month">
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={dashboard.trendDiscoveredLast3Months} margin={{ top: 12, right: 20, bottom: 4, left: -8 }}>
               <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
               <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#64748b" tick={{ fontSize: 11 }} />
-              <Tooltip cursor={{ fill: "rgba(15, 23, 42, 0.65)" }} contentStyle={{ background: "#020617", border: "1px solid #1e293b" }} />
-              <Legend wrapperStyle={{ color: "#94a3b8", fontSize: 12, fontWeight: 700 }} />
-              <Bar dataKey="Critical" fill="#ef4444" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-              <Bar dataKey="High" fill="#fb923c" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-              <Bar dataKey="Medium" fill="#fde047" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-              <Bar dataKey="Low" fill="#34d399" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              <YAxis allowDecimals={false} stroke="#64748b" tick={{ fontSize: 11 }} />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Line dataKey="discoveredCount" name="Discovered" type="monotone" stroke="#38bdf8" strokeWidth={3} dot={{ r: 5, fill: "#0f172a", strokeWidth: 3 }} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartPanel>
+
+        <ChartPanel number="2" title="Total Open Vulnerabilities" subtitle="New findings plus findings not closed from the previous report">
+          <div className="grid h-[260px] content-center gap-4 sm:grid-cols-3">
+            <OpenMeasure label="Total Open" value={open.totalOpen} color="text-emerald-300" />
+            <OpenMeasure label="New" value={open.newVulnerabilities} color="text-sky-300" />
+            <OpenMeasure label="Not Closed" value={open.notClosedFromPreviousMonths} color="text-orange-300" />
+          </div>
+        </ChartPanel>
+
+        <ChartPanel number="3" title="Total Open by Patch Priority" subtitle="Approved severity and exploit-availability matrix">
+          <ResponsiveContainer width="100%" height={270}>
+            <BarChart data={priorityData} margin={{ top: 12, right: 18, bottom: 4, left: -8 }}>
+              <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="priority" stroke="#64748b" />
+              <YAxis allowDecimals={false} stroke="#64748b" />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Bar dataKey="count" name="Open findings" radius={[8, 8, 0, 0]} isAnimationActive={false}>
+                {priorityData.map((entry) => <Cell key={entry.priority} fill={entry.fill} />)}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartPanel>
 
-        <ChartPanel title="Total Open Trend">
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={monthlyOpenTrend} margin={{ top: 8, right: 16, bottom: 0, left: -12 }}>
-              <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-              <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#64748b" tick={{ fontSize: 11 }} />
-              <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1e293b" }} />
+        <ChartPanel number="4" title="Open Findings by Age and Patch Priority" subtitle="Cumulative >7, >30, >60, and >180 day thresholds">
+          <ResponsiveContainer width="100%" height={270}>
+            <BarChart data={ageChartData} margin={{ top: 12, right: 18, bottom: 4, left: -8 }}>
+              <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="bucket" stroke="#64748b" tick={{ fontSize: 11 }} />
+              <YAxis allowDecimals={false} stroke="#64748b" />
+              <Tooltip contentStyle={tooltipStyle} />
               <Legend wrapperStyle={{ color: "#94a3b8", fontSize: 12, fontWeight: 700 }} />
-              <Line dataKey="totalOpen" name="Total Open" type="monotone" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} isAnimationActive={false} />
-              <Line dataKey="newThisMonth" name="New This Month" type="monotone" stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 4 }} isAnimationActive={false} />
-              <Line
-                dataKey="patchedSinceLastMonth"
-                name="Patched Since Last Month"
-                type="monotone"
-                stroke="#22c55e"
-                strokeWidth={2.5}
-                dot={{ r: 4 }}
-                isAnimationActive={false}
-              />
-            </LineChart>
+              {Object.entries(PRIORITY_COLORS).map(([priority, color]) => <Bar key={priority} dataKey={priority} fill={color} radius={[4, 4, 0, 0]} isAnimationActive={false} />)}
+            </BarChart>
           </ResponsiveContainer>
         </ChartPanel>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
-        <div className="mb-3 flex items-center gap-3">
-          <FileSpreadsheet className="h-5 w-5 text-emerald-300" />
-          <h3 className="font-black text-white">Severity Trend - Uploaded Months</h3>
-        </div>
+      <div className="mt-5">
+        <ChartPanel number="5" title="Vulnerabilities Patched - Last 3 Months" subtitle="Findings present in one report and absent from the next">
+          <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={dashboard.trendRemediatedLast3Months} margin={{ top: 12, right: 20, bottom: 4, left: -8 }}>
+                <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
+                <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} stroke="#64748b" tick={{ fontSize: 11 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Line dataKey="remediatedCount" name="Patched" type="monotone" stroke="#22c55e" strokeWidth={3} dot={{ r: 5, fill: "#0f172a", strokeWidth: 3 }} isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="grid content-center gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/8 p-5">
+              <p className="mini-label">Latest Month Calculation</p>
+              <p className="text-5xl font-black text-emerald-300">{patched.patchedCount}</p>
+              <p className="text-sm font-semibold leading-6 text-slate-400">{patched.previousMonthOpen} previous open + {patched.newVulnerabilitiesIdentifiedThisMonth} new - {patched.currentMonthOpen} current open</p>
+            </div>
+          </div>
+        </ChartPanel>
+      </div>
+
+      {dashboard.crowdstrikeInsights && <CrowdStrikeInsights insights={dashboard.crowdstrikeInsights} />}
+
+      <div className="mt-5 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+        <div className="mb-3 flex items-center gap-3"><FileSpreadsheet className="h-5 w-5 text-emerald-300" /><h3 className="font-black text-white">Uploaded Month Report</h3></div>
         <div className="overflow-auto">
-          <table className="w-full min-w-[820px] border-collapse text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                {["Month", "Critical", "High", "Medium", "Low", "Total Open", "Period"].map((heading) => (
-                  <th key={heading} className="border-b border-white/10 px-3 py-3 font-black">
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {monthlyDashboardRows.map((row) => (
-                <tr key={row.month} className="border-b border-white/5 text-slate-300">
-                  <td className="px-3 py-3 font-bold text-slate-100">{row.month}</td>
-                  <td className="px-3 py-3 text-red-300">{row.critical}</td>
-                  <td className="px-3 py-3 text-orange-300">{row.high}</td>
-                  <td className="px-3 py-3 text-yellow-200">{row.medium}</td>
-                  <td className="px-3 py-3 text-emerald-300">{row.low}</td>
-                  <td className="px-3 py-3 font-black text-white">{row.totalOpen}</td>
-                  <td className="px-3 py-3 text-slate-500">{row.period}</td>
-                </tr>
-              ))}
-            </tbody>
+          <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+            <thead className="text-xs uppercase tracking-wide text-slate-500"><tr>{["Month", "Critical", "High", "Medium", "Low", "Total Open", "New", "Patched"].map((heading) => <th key={heading} className="border-b border-white/10 px-3 py-3 font-black">{heading}</th>)}</tr></thead>
+            <tbody>{dashboard.severityTrend.map((row, index) => <tr key={row.month} className="border-b border-white/5 text-slate-300"><td className="px-3 py-3 font-bold text-white">{row.month}</td><td className="px-3 py-3 text-red-300">{row.Critical}</td><td className="px-3 py-3 text-orange-300">{row.High}</td><td className="px-3 py-3 text-yellow-200">{row.Medium}</td><td className="px-3 py-3 text-emerald-300">{row.Low}</td><td className="px-3 py-3 font-black text-white">{row.totalOpen}</td><td className="px-3 py-3 text-sky-300">{dashboard.openTrend[index].newThisMonth}</td><td className="px-3 py-3 text-emerald-300">{dashboard.openTrend[index].patchedSinceLastMonth}</td></tr>)}</tbody>
           </table>
         </div>
+      </div>
+
+      <div id="ai-report-builder" className="mt-5 grid gap-5 xl:grid-cols-[1fr_430px]">
+        <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+          <p className="mini-label">Report Outputs</p>
+          <h3 className="mt-1 text-xl font-black text-white">Excel, normalized CSV, and Remediation Guide PDF</h3>
+          <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Excel and normalized CSV are generated from the local comparison. The selected month findings are sent only when you request an AI Remediation Guide.</p>
+        </article>
+        <AiReportBuilder analysis={analysis} selectedMonth={selectedMonth} onMonthChange={onMonthChange} monthOptions={monthOptions} workflow="monthly" />
       </div>
     </section>
   );
 }
 
-function ChartPanel({ title, children }) {
-  return (
-    <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
-      <h3 className="mb-3 font-mono text-xs font-black uppercase tracking-[0.16em] text-slate-300">{title}</h3>
-      {children}
-    </article>
-  );
-}
+function MonthlyUploadGate({ selectedSource, onAnalyze }) {
+  const [files, setFiles] = useState([]);
+  const [status, setStatus] = useState({ state: "idle", message: "Select at least two monthly CSV exports." });
+  const detectedMonths = files.map((file) => extractMonthFromFilename(file.name)?.label).filter(Boolean);
+  const canAnalyze = files.length >= 2;
 
-function MonthlyUploadGate({ onUpload, selectedSource, detectedFileCount, onFilesReady }) {
-  const [filesReady, setFilesReady] = useState(false);
-  const [fileCount, setFileCount] = useState(detectedFileCount || 0);
-  const [detectedMonths, setDetectedMonths] = useState([]);
-  const [fileNames, setFileNames] = useState([]);
-  const approaches = tenableMonthlyApproaches[selectedSource?.id] ?? defaultMonthlyApproaches;
-  const [selectedApproach, setSelectedApproach] = useState(approaches[0]?.id ?? "same-source");
-  const isTenable = selectedSource?.id === "tenable-sc" || selectedSource?.id === "tenable-io";
-  const sourceName = selectedSource?.name ?? "Selected source";
-  const canAnalyze = filesReady && fileCount >= 2;
-
-  useEffect(() => {
-    setSelectedApproach(approaches[0]?.id ?? "same-source");
-  }, [approaches, selectedSource?.id]);
-
-  const publishSelection = ({ nextFileCount, nextMonths, nextFileNames }) => {
-    setFileCount(nextFileCount);
-    setDetectedMonths(nextMonths);
-    setFileNames(nextFileNames);
-    setFilesReady(true);
-    onFilesReady?.({ fileCount: nextFileCount, months: nextMonths });
-  };
-
-  const markFilesReady = (event) => {
-    const selectedFiles = Array.from(event?.target?.files ?? []);
-    const nextFileCount = selectedFiles.length;
-    const nextFileNames = selectedFiles.map((file) => file.name);
-    const nextMonths = extractMonthsFromFileNames(nextFileNames);
-
-    publishSelection({
-      nextFileCount,
-      nextMonths,
-      nextFileNames,
-    });
-  };
-
-  const useSampleFiles = () => {
-    publishSelection({
-      nextFileCount: defaultMonthOptions.length,
-      nextMonths: defaultMonthOptions,
-      nextFileNames: defaultMonthOptions.map((month) => `${sourceName.toLowerCase().replaceAll(" ", "_")}_${month.toLowerCase().replaceAll(" ", "_")}_sample.csv`),
-    });
-  };
-
-  const analyzeMonthlyFiles = () => {
-    if (!canAnalyze) {
+  const selectFiles = (fileList) => {
+    const nextFiles = Array.from(fileList ?? []);
+    const invalid = nextFiles.find((file) => !file.name.toLowerCase().endsWith(".csv"));
+    if (invalid) {
+      setStatus({ state: "error", message: `${invalid.name} is not a CSV file.` });
       return;
     }
+    setFiles(nextFiles);
+    setStatus({ state: nextFiles.length >= 2 ? "ready" : "error", message: nextFiles.length >= 2 ? `${nextFiles.length} monthly reports ready.` : "Select at least two monthly CSV exports." });
+  };
 
-    onUpload?.({
-      fileCount,
-      months: detectedMonths.length ? detectedMonths : defaultMonthOptions,
-    });
+  const analyze = async () => {
+    if (!canAnalyze) return;
+    setStatus({ state: "loading", message: `Comparing ${files.length} monthly reports locally...` });
+    try {
+      const result = await onAnalyze(files);
+      setStatus({ state: "success", message: `${result.snapshots.length} reports analyzed.` });
+    } catch (error) {
+      setStatus({ state: "error", message: error.message || "Monthly analysis failed." });
+    }
+  };
+
+  const loadSamples = async () => {
+    setStatus({ state: "loading", message: `Loading four real ${selectedSource.name} sample CSVs...` });
+    try {
+      const samples = await loadBundledSamples(selectedSource.id, "monthly");
+      selectFiles(samples);
+    } catch (error) {
+      setStatus({ state: "error", message: error.message || "Sample loading failed." });
+    }
   };
 
   return (
     <section className="cyber-panel rounded-[1.75rem] p-5">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="mini-label">Monthly Data Comparison</p>
-          <h2 className="mt-1 text-2xl font-black text-white">Upload monthly exports first</h2>
-          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-400">
-            Upload at least two monthly exports. For Tenable.sc and Tenable.io, you can either analyze one source across many months or mix SC and IO month files during a migration.
-          </p>
-        </div>
-        <span
-          className={`rounded-full border px-4 py-2 text-sm font-bold ${
-            canAnalyze
-              ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-200"
-              : filesReady
-                ? "border-amber-300/25 bg-amber-300/10 text-amber-200"
-                : "border-slate-300/15 bg-white/5 text-slate-300"
-          }`}
-        >
-          {canAnalyze ? `${fileCount} reports ready` : filesReady ? `${fileCount} file selected - add at least ${Math.max(0, 2 - fileCount)} more` : "No month detected yet"}
-        </span>
+        <div><p className="mini-label">Monthly Data Comparison</p><h2 className="mt-1 text-2xl font-black text-white">Upload monthly exports</h2><p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Choose two or more {selectedSource.name} CSVs. Tenable.sc and Tenable.io can be mixed; CrowdStrike monthly comparison uses Vulnerabilities or Vulnerability per asset exports.</p></div>
+        <span className={`rounded-full border px-4 py-2 text-sm font-bold ${canAnalyze ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-200" : "border-white/10 bg-white/5 text-slate-400"}`}>{files.length ? `${files.length} reports selected` : "No reports selected"}</span>
       </div>
 
-      <div className="mb-5 grid gap-4 lg:grid-cols-2">
-        {approaches.map((approach) => {
-          const isSelected = approach.id === selectedApproach;
-
-          return (
-            <button
-              key={approach.id}
-              type="button"
-              onClick={() => setSelectedApproach(approach.id)}
-              className={`rounded-3xl border p-5 text-left transition ${
-                isSelected
-                  ? "border-emerald-300/60 bg-emerald-400/12 shadow-glow"
-                  : "border-white/10 bg-slate-950/55 hover:border-cyan-300/35 hover:bg-cyan-300/8"
-              }`}
-            >
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-xl font-black text-white">{approach.title}</h3>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
-                  {approach.badge}
-                </span>
-              </div>
-              <p className="text-sm font-semibold leading-6 text-slate-400">{approach.body}</p>
-              <p className="mt-4 font-mono text-xs font-bold text-cyan-200">{approach.example}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[1fr_0.75fr]">
+      <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
         <div>
-          <label className="group grid min-h-60 cursor-pointer place-items-center rounded-3xl border border-dashed border-white/20 bg-slate-950/50 p-8 text-center transition hover:border-emerald-300/45 hover:bg-emerald-400/5">
-            <input className="sr-only" type="file" accept=".csv,.xlsx" multiple onChange={markFilesReady} />
+          <label className="group grid min-h-64 cursor-pointer place-items-center rounded-3xl border border-dashed border-white/20 bg-slate-950/50 p-8 text-center transition hover:border-emerald-300/45 hover:bg-emerald-400/5" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); selectFiles(event.dataTransfer.files); }}>
+            <input className="sr-only" type="file" accept=".csv,text/csv" multiple onChange={(event) => selectFiles(event.target.files)} />
             <UploadCloud className="mb-4 h-16 w-16 text-slate-300 transition group-hover:text-emerald-300" />
-            <p className="text-lg font-black text-white">
-              {filesReady ? "Monthly files ready for analysis" : `Drop ${sourceName} monthly CSV/XLSX files here`}
-            </p>
-            <p className="mt-1 text-sm font-semibold text-slate-500">
-              {filesReady
-                ? canAnalyze
-                  ? "Click Analyze to generate the dashboard, Excel report, and PDF month options"
-                  : "Monthly comparison requires at least two files. Hold Command/Shift to select multiple CSVs."
-                : isTenable
-                  ? "Supports SC-only, IO-only, or mixed SC + IO monthly exports"
-                  : "Example: April + May + June + July"}
-            </p>
+            <p className="text-lg font-black text-white">Drop all monthly CSVs here or click once to browse</p>
+            <p className="mt-2 text-sm font-semibold text-slate-500">Use filenames containing Month YYYY for reliable ordering.</p>
           </label>
-
-          {filesReady && (
-            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="font-black text-white">Detected report months</p>
-                <p className="text-xs font-bold text-slate-500">{fileCount} file{fileCount === 1 ? "" : "s"} selected</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(detectedMonths.length ? detectedMonths : ["Month not detected from filename"]).map((month) => (
-                  <span key={month} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-100">
-                    {month}
-                  </span>
-                ))}
-              </div>
-              {fileNames.length > 0 && (
-                <div className="mt-3 max-h-28 overflow-auto rounded-xl border border-white/10 bg-black/20 p-3">
-                  {fileNames.map((fileName) => (
-                    <p key={fileName} className="truncate font-mono text-xs font-semibold text-slate-400">
-                      {fileName}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={filesReady ? analyzeMonthlyFiles : useSampleFiles}
-            disabled={filesReady && !canAnalyze}
-            className={canAnalyze ? "neon-button mt-4 w-full" : "ghost-button mt-4 w-full disabled:cursor-not-allowed disabled:opacity-50"}
-          >
-            {canAnalyze ? "Analyze & Generate Excel Report" : filesReady ? "Select at least 2 monthly reports" : "Use sample multi-month files"}
-          </button>
+          {files.length > 0 && <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4"><div className="flex flex-wrap gap-2">{files.map((file) => <span key={file.name} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-100">{extractMonthFromFilename(file.name)?.label ?? file.name}</span>)}</div></div>}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={loadSamples} disabled={status.state === "loading"} className="ghost-button disabled:cursor-not-allowed disabled:opacity-45">Load 4-Month Test Pack</button>
+            <button type="button" onClick={analyze} disabled={!canAnalyze || status.state === "loading"} className="neon-button disabled:cursor-not-allowed disabled:opacity-45">{status.state === "loading" ? "Analyzing Monthly Reports..." : "Analyze & Generate Monthly Report"}</button>
+          </div>
+          <p className={`mt-3 rounded-xl border px-4 py-3 text-xs font-bold ${status.state === "error" ? "border-red-300/25 bg-red-400/10 text-red-100" : "border-white/10 bg-white/5 text-slate-400"}`}>{status.message}</p>
         </div>
-
         <div className="grid gap-4">
-          {[
-            ["Minimum 2 Month Exports", "Required for new, not closed, and patched calculations"],
-            ["3+ Month Exports", "Used to build the vulnerability discovery trend and remediated trend"],
-            ["Auto Format Detection", isTenable ? "SC and IO files can be mixed month-by-month and normalized before comparison" : "Monthly files are normalized into the MVA schema before comparison"],
-          ].map(([title, body]) => (
-            <div key={title} className="rounded-2xl border border-white/10 bg-slate-950/55 p-5">
-              <div className="mb-3 flex items-center gap-3">
-                <CalendarRange className="h-5 w-5 text-cyan-300" />
-                <p className="font-black text-white">{title}</p>
-              </div>
-              <p className="text-sm font-semibold leading-6 text-slate-500">{body}</p>
-            </div>
-          ))}
+          <Requirement title="2+ Monthly Reports" body="Calculates total open, new, not closed, and patched findings." />
+          <Requirement title="3+ Monthly Reports" body="Builds the required three-month discovered and patched line charts." />
+          <Requirement title="Auto Field Mapping" body={`${selectedSource.name} headers are detected and normalized before comparison.`} />
+          {detectedMonths.length > 0 && <Requirement title="Detected Months" body={detectedMonths.join(" | ")} />}
         </div>
       </div>
     </section>
   );
 }
 
-const monthAliases = [
-  ["January", /(?:jan|january)/i],
-  ["February", /(?:feb|february)/i],
-  ["March", /(?:mar|march)/i],
-  ["April", /(?:apr|april)/i],
-  ["May", /(?:may)/i],
-  ["June", /(?:jun|june)/i],
-  ["July", /(?:jul|july)/i],
-  ["August", /(?:aug|august)/i],
-  ["September", /(?:sep|sept|september)/i],
-  ["October", /(?:oct|october)/i],
-  ["November", /(?:nov|november)/i],
-  ["December", /(?:dec|december)/i],
-];
-
-function extractMonthsFromFileNames(fileNames) {
-  const detected = fileNames
-    .map((fileName) => {
-      const normalized = fileName.replace(/[_-]+/g, " ");
-      const yearMatch = normalized.match(/\b(20\d{2})\b/);
-      const monthIndex = monthAliases.findIndex(([, pattern]) => pattern.test(normalized));
-
-      if (monthIndex === -1 || !yearMatch) {
-        return null;
-      }
-
-      return {
-        label: `${monthAliases[monthIndex][0]} ${yearMatch[1]}`,
-        sortKey: Number(yearMatch[1]) * 100 + monthIndex,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.sortKey - b.sortKey)
-    .map((item) => item.label);
-
-  return [...new Set(detected)];
+function Kpi({ label, value, helper, color }) {
+  return <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-4"><p className="font-mono text-[0.65rem] font-bold uppercase tracking-[0.15em] text-slate-500">{label}</p><p className="mt-2 text-3xl font-black tracking-[-0.05em]" style={{ color }}>{Number(value).toLocaleString()}</p><p className="mt-1 truncate text-xs font-semibold text-slate-500" title={helper}>{helper}</p></article>;
 }
+
+function ChartPanel({ number, title, subtitle, children }) {
+  return <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-5"><div className="mb-3 flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-emerald-300/20 bg-emerald-400/10 font-mono text-xs font-black text-emerald-300">{number}</span><div><h3 className="font-black text-white">{title}</h3><p className="mt-1 text-xs font-semibold text-slate-500">{subtitle}</p></div></div>{children}</article>;
+}
+
+function OpenMeasure({ label, value, color }) {
+  return <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-5 text-center"><p className={`text-4xl font-black ${color}`}>{Number(value).toLocaleString()}</p><p className="mt-2 text-xs font-black uppercase tracking-wide text-slate-500">{label}</p></div>;
+}
+
+function CrowdStrikeInsights({ insights }) {
+  return <section className="mt-5 rounded-2xl border border-red-300/15 bg-red-400/[0.035] p-5"><div className="mb-4"><p className="mini-label text-red-300">CrowdStrike Exposure Signals</p><h3 className="mt-1 text-xl font-black text-white">Prioritize exploitable and exposed assets</h3></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Kpi label="Exploit Available" value={insights.exploitAvailable} helper="Exploit status or CISA KEV" color="#fb923c" /><Kpi label="CISA KEV" value={insights.cisaKev} helper="Known exploited catalog" color="#ef4444" /><Kpi label="Internet Exposed" value={insights.internetExposed} helper="Open findings" color="#22d3ee" /><Kpi label="Critical Assets" value={insights.criticalAssets} helper="Distinct affected assets" color="#c084fc" /></div></section>;
+}
+
+function Requirement({ title, body }) {
+  return <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-5"><div className="mb-3 flex items-center gap-3"><CalendarRange className="h-5 w-5 text-cyan-300" /><p className="font-black text-white">{title}</p></div><p className="text-sm font-semibold leading-6 text-slate-500">{body}</p></div>;
+}
+
+const tooltipStyle = { background: "#020617", border: "1px solid #1e293b", borderRadius: 12, color: "#e2e8f0" };

@@ -1,130 +1,112 @@
 import { useState } from "react";
-import { AlertTriangle, Bot, ChevronDown, FileText, ServerCog, Wifi } from "lucide-react";
+import { AlertTriangle, Bot, ChevronDown, FileText, KeyRound, Wifi } from "lucide-react";
+import { buildRemediationPrompt, buildTemplateMarkdown, downloadRemediationPdf } from "../lib/pdfReport.js";
 
 const providers = [
   {
-    name: "NVIDIA NIM",
-    helper: "NVIDIA-hosted model through your MVA backend.",
+    name: "NVIDIA Nemotron 3 Ultra",
+    helper: "Strongest open NVIDIA model for long-context reasoning and customer remediation writing.",
     model: "nvidia/nemotron-3-ultra-550b-a55b",
     baseUrl: "https://integrate.api.nvidia.com/v1",
-    healthUrl: "",
-    backendPath: "/health/nvidia",
-    requiresBackend: true,
+    type: "nvidia",
+    badge: "Recommended - strongest",
+  },
+  {
+    name: "NVIDIA Nemotron 3 Super",
+    helper: "Balanced quality, latency, and agentic reasoning.",
+    model: "nvidia/nemotron-3-super-120b-a12b",
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    type: "nvidia",
+    badge: "Balanced",
+  },
+  {
+    name: "NVIDIA Nemotron 3 Nano",
+    helper: "Fast, lower-latency report drafting for routine workloads.",
+    model: "nvidia/nemotron-3-nano-30b-a3b",
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    type: "nvidia",
+    badge: "Fast",
   },
   {
     name: "MVA Cloud API",
-    helper: "Your internal backend keeps keys server-side.",
-    model: "Internal MVA PDF agent",
+    helper: "Your organization-hosted API keeps provider credentials server-side.",
+    model: "mva-remediation-agent",
     baseUrl: "",
-    healthUrl: "",
-    backendPath: "/health",
-    requiresBackend: true,
+    type: "backend",
+    badge: "Enterprise",
   },
   {
-    name: "Groq",
-    helper: "Groq route through your MVA backend.",
-    model: "Backend configured model",
-    baseUrl: "",
-    healthUrl: "",
-    backendPath: "/health/groq",
-    requiresBackend: true,
-  },
-  {
-    name: "OpenRouter",
-    helper: "Optional backend provider route.",
-    model: "Backend configured model",
-    baseUrl: "",
-    healthUrl: "",
-    backendPath: "/health/openrouter",
-    requiresBackend: true,
-  },
-  {
-    name: "Template Only",
-    helper: "Generate without AI provider calls.",
+    name: "Template PDF - No AI",
+    helper: "Build the approved Remediation Guide locally without an external model.",
     model: "No external model",
     baseUrl: "",
-    healthUrl: "",
-    backendPath: "",
-    requiresBackend: false,
+    type: "template",
+    badge: "Always available",
   },
 ];
 
-const isTemplateProvider = (providerName) => providerName === "Template Only";
-
-const backendUrlPlaceholder = (provider) =>
-  provider.backendPath ? `https://your-mva-api.example.com${provider.backendPath}` : "https://your-mva-api.example.com/health";
-
-export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [], compact = false, workflow = "adhoc" }) {
+export function AiReportBuilder({ analysis, selectedMonth, onMonthChange, monthOptions = [], compact = false, workflow = "adhoc" }) {
   const [selectedProvider, setSelectedProvider] = useState(providers[0].name);
   const provider = providers.find((item) => item.name === selectedProvider) ?? providers[0];
-  const [healthUrl, setHealthUrl] = useState(provider.healthUrl);
   const [sessionApiKey, setSessionApiKey] = useState("");
   const [providerBaseUrl, setProviderBaseUrl] = useState(provider.baseUrl);
   const [providerModel, setProviderModel] = useState(provider.model);
   const [connectionState, setConnectionState] = useState({ status: "idle", message: "Not tested yet" });
-  const [reportState, setReportState] = useState({ status: "idle", message: "No report request sent yet" });
+  const [reportState, setReportState] = useState({ status: "idle", message: "No report generated yet" });
   const hasMonths = monthOptions.length > 0 && !monthOptions.includes("No month detected");
-  const targetMonth = selectedMonth || (hasMonths ? monthOptions[monthOptions.length - 1] : "");
-  const isMonthly = workflow === "monthly";
+  const targetMonth = selectedMonth || (hasMonths ? monthOptions.at(-1) : "");
 
   const handleProviderChange = (event) => {
-    const nextProvider = providers.find((item) => item.name === event.target.value) ?? providers[0];
-    setSelectedProvider(nextProvider.name);
-    setHealthUrl(nextProvider.healthUrl);
-    setProviderBaseUrl(nextProvider.baseUrl);
-    setProviderModel(nextProvider.model);
+    const next = providers.find((item) => item.name === event.target.value) ?? providers[0];
+    setSelectedProvider(next.name);
+    setProviderBaseUrl(next.baseUrl);
+    setProviderModel(next.model);
     setConnectionState({ status: "idle", message: "Not tested yet" });
-    setReportState({ status: "idle", message: "No report request sent yet" });
+    setReportState({ status: "idle", message: "No report generated yet" });
   };
 
   const testConnectivity = async () => {
-    if (!healthUrl) {
-      setConnectionState({
-        status: isTemplateProvider(selectedProvider) ? "warn" : "error",
-        message: isTemplateProvider(selectedProvider)
-          ? "Template mode does not require an API server."
-          : `Paste your MVA backend health URL, for example ${backendUrlPlaceholder(provider)}.`,
-      });
+    if (provider.type === "template") {
+      setConnectionState({ status: "success", message: "Template PDF mode is ready and does not require an API key." });
+      return;
+    }
+    if (!providerBaseUrl.trim()) {
+      setConnectionState({ status: "error", message: "Enter the cloud provider or MVA Cloud API base URL." });
+      return;
+    }
+    if (provider.type === "nvidia" && !sessionApiKey.trim()) {
+      setConnectionState({ status: "error", message: "Paste an NVIDIA API key for this browser session." });
       return;
     }
 
-    setConnectionState({ status: "testing", message: "Testing API server..." });
-
+    setConnectionState({ status: "testing", message: "Testing the cloud model route..." });
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 45000);
-
+    const timeout = window.setTimeout(() => controller.abort(), 45_000);
     try {
-      const hasSessionOverride = Boolean(sessionApiKey.trim() || providerBaseUrl.trim() || providerModel.trim() !== provider.model);
-      const response = await fetch(healthUrl, {
-        method: hasSessionOverride ? "POST" : "GET",
-        headers: hasSessionOverride ? { "Content-Type": "application/json" } : undefined,
-        body: hasSessionOverride
-          ? JSON.stringify({
-              provider: selectedProvider,
-              apiKey: sessionApiKey.trim(),
-              baseUrl: providerBaseUrl.trim(),
-              model: providerModel.trim(),
-            })
-          : undefined,
-        signal: controller.signal,
-      });
-      const payload = await response.json().catch(() => ({}));
-
-      setConnectionState({
-        status: response.ok ? "success" : "error",
-        message: response.ok
-          ? payload.response
-            ? `Connected: ${payload.provider || selectedProvider} returned "${payload.response}".`
-            : `Connected: ${response.status}`
-          : payload.error || payload.message || `Server responded with ${response.status}`,
-      });
+      if (provider.type === "nvidia") {
+        const payload = await callNvidia({
+          baseUrl: providerBaseUrl,
+          apiKey: sessionApiKey,
+          model: providerModel,
+          messages: [{ role: "user", content: "Reply with exactly: MVA READY" }],
+          maxTokens: 12,
+          signal: controller.signal,
+          thinking: false,
+        });
+        const answer = payload.choices?.[0]?.message?.content?.trim() || "Connected";
+        setConnectionState({ status: "success", message: `Connected to ${providerModel}: ${answer}` });
+      } else {
+        const response = await fetch(joinUrl(providerBaseUrl, "/health"), {
+          headers: sessionApiKey ? { Authorization: `Bearer ${sessionApiKey}` } : undefined,
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Cloud API returned HTTP ${response.status}.`);
+        setConnectionState({ status: "success", message: "MVA Cloud API is reachable." });
+      }
     } catch (error) {
-      const isAbort = error?.name === "AbortError";
       setConnectionState({
         status: "error",
-        message: isAbort
-          ? "API test timed out after 45 seconds. The server may be busy or the provider request is slow."
-          : "Could not reach the MVA backend. Check the backend URL, CORS policy, VPN, and API gateway routing.",
+        message: error.name === "AbortError" ? "Connection test timed out after 45 seconds." : friendlyProviderError(error),
       });
     } finally {
       window.clearTimeout(timeout);
@@ -132,53 +114,73 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
   };
 
   const generateReport = async () => {
+    if (!analysis) {
+      setReportState({ status: "error", message: "Analyze an upload before generating the PDF." });
+      return;
+    }
     if (!targetMonth) {
-      setReportState({ status: "error", message: "Select or detect a PDF target month first." });
+      setReportState({ status: "error", message: "Select the PDF target month first." });
+      return;
+    }
+    if (provider.type !== "template" && !providerBaseUrl.trim()) {
+      setReportState({ status: "error", message: "Enter the cloud API base URL." });
+      return;
+    }
+    if (provider.type === "nvidia" && !sessionApiKey.trim()) {
+      setReportState({ status: "error", message: "Paste an NVIDIA API key for this browser session." });
       return;
     }
 
-    if (!healthUrl) {
-      setReportState({
-        status: isTemplateProvider(selectedProvider) ? "success" : "error",
-        message: isTemplateProvider(selectedProvider)
-          ? `Template report request prepared for ${targetMonth}.`
-          : `Paste your MVA backend health URL before generating the PDF, for example ${backendUrlPlaceholder(provider)}.`,
-      });
-      return;
-    }
-
-    setReportState({ status: "testing", message: "Sending PDF generation request to API server..." });
-
+    setReportState({ status: "testing", message: "Generating the Remediation Guide..." });
     try {
-      const generateUrl = new URL(healthUrl);
-      generateUrl.pathname = "/generate/pdf";
-      generateUrl.search = "";
-
-      const response = await fetch(generateUrl.toString(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: selectedProvider,
+      let markdown;
+      if (provider.type === "template") {
+        markdown = buildTemplateMarkdown({ analysis, targetMonth });
+      } else if (provider.type === "nvidia") {
+        const result = await callNvidia({
+          baseUrl: providerBaseUrl,
+          apiKey: sessionApiKey,
           model: providerModel,
-          apiKey: sessionApiKey.trim(),
-          baseUrl: providerBaseUrl.trim(),
-          targetMonth,
-          workflow,
-        }),
-      });
+          messages: [
+            { role: "system", content: "You are the MVA Remediation Guide engine. Return clean customer-ready Markdown only." },
+            { role: "user", content: buildRemediationPrompt({ analysis, targetMonth }) },
+          ],
+          maxTokens: 8192,
+          thinking: true,
+        });
+        markdown = result.choices?.[0]?.message?.content?.trim();
+        if (!markdown) throw new Error("The NVIDIA model returned no report content.");
+      } else {
+        const response = await fetch(joinUrl(providerBaseUrl, "/generate/pdf"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(sessionApiKey ? { Authorization: `Bearer ${sessionApiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            targetMonth,
+            workflow,
+            sourceTool: analysis.sourceLabel,
+            dashboardSummary: analysis.dashboard,
+            findings: prioritizedPayload(analysis, targetMonth),
+          }),
+        });
+        if (!response.ok) throw new Error(`MVA Cloud API returned HTTP ${response.status}.`);
+        if (response.headers.get("content-type")?.includes("application/pdf")) {
+          const blob = await response.blob();
+          savePdfBlob(blob, `MVA_${targetMonth.replaceAll(" ", "_")}_Remediation_Guide.pdf`);
+          setReportState({ status: "success", message: `Remediation Guide PDF downloaded for ${targetMonth}.` });
+          return;
+        }
+        const payload = await response.json();
+        markdown = payload.aiMarkdown || payload.markdown;
+        if (!markdown) throw new Error("MVA Cloud API did not return PDF content or report Markdown.");
+      }
 
-      const payload = await response.json().catch(() => ({}));
-      setReportState({
-        status: response.ok ? "success" : "error",
-        message: response.ok
-          ? payload.message || `PDF generation request accepted for ${targetMonth}.`
-          : payload.error || `PDF request failed with ${response.status}.`,
-      });
+      await downloadRemediationPdf({ markdown, sourceLabel: analysis.sourceLabel, targetMonth });
+      setReportState({ status: "success", message: `Remediation Guide PDF downloaded for ${targetMonth}.` });
     } catch (error) {
-      setReportState({
-        status: "error",
-        message: "Could not reach PDF generation endpoint. Check the deployed backend URL, CORS policy, VPN, and API gateway routing.",
-      });
+      setReportState({ status: "error", message: friendlyProviderError(error) });
     }
   };
 
@@ -186,177 +188,112 @@ export function AiReportBuilder({ selectedMonth, onMonthChange, monthOptions = [
     <section className="cyber-panel rounded-[1.75rem] p-5">
       <div className="mb-5 flex items-center gap-3 border-b border-white/10 pb-4">
         <Bot className="h-8 w-8 text-emerald-300" />
-        <div>
-          <p className="mini-label">AI Report Builder</p>
-          <h2 className="text-xl font-black text-white">Remediation Guide PDF</h2>
-        </div>
+        <div><p className="mini-label">AI Report Builder</p><h2 className="text-xl font-black text-white">Remediation Guide PDF</h2></div>
       </div>
 
       <div className="space-y-5">
         <label className="block">
-          <span className="mb-2 block text-sm font-bold text-slate-400">Select AI Provider</span>
+          <span className="mb-2 block text-sm font-bold text-slate-400">AI Provider / Model</span>
           <div className="relative">
-            <select
-              value={selectedProvider}
-              onChange={handleProviderChange}
-              className="w-full appearance-none rounded-2xl border border-emerald-400/45 bg-slate-950/80 px-4 py-4 font-bold text-slate-100 outline-none"
-            >
-              {providers.map((provider) => (
-                <option key={provider.name}>{provider.name}</option>
-              ))}
+            <select value={selectedProvider} onChange={handleProviderChange} className="w-full appearance-none rounded-2xl border border-emerald-400/45 bg-slate-950/80 px-4 py-4 font-bold text-slate-100 outline-none">
+              {providers.map((item) => <option key={item.name}>{item.name}</option>)}
             </select>
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
           </div>
-          <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-            Model route: <span className="text-cyan-200">{providerModel}</span>
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold leading-5 text-slate-500">
+            <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-1 text-cyan-200">{provider.badge}</span>
+            <span>{provider.helper}</span>
+          </div>
         </label>
 
-        <div className="grid gap-4 rounded-2xl border border-cyan-300/15 bg-cyan-400/5 p-4">
-          <div>
-            <p className="text-sm font-black text-white">Session provider settings</p>
-            <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
-              Paste an API key or provider base URL here only for this session. The API server URL below must point to your MVA backend.
-            </p>
+        {provider.type !== "template" && (
+          <div className="grid gap-4 rounded-2xl border border-cyan-300/15 bg-cyan-400/5 p-4">
+            <div><p className="text-sm font-black text-white">Cloud session settings</p><p className="mt-1 text-xs font-semibold leading-5 text-slate-400">Values stay in browser memory and are cleared when this tab closes. Nothing is saved to GitHub.</p></div>
+            <label className="block"><span className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-400"><KeyRound className="h-4 w-4" />API Key (session only)</span><input type="password" value={sessionApiKey} onChange={(event) => setSessionApiKey(event.target.value)} placeholder={provider.type === "nvidia" ? "nvapi-..." : "Optional cloud API token"} autoComplete="off" className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-xs font-bold text-slate-100 outline-none" /></label>
+            <label className="block"><span className="mb-2 block text-sm font-bold text-slate-400">Cloud Base URL</span><input value={providerBaseUrl} onChange={(event) => setProviderBaseUrl(event.target.value)} placeholder={provider.type === "nvidia" ? "https://integrate.api.nvidia.com/v1" : "https://mva-api.your-org.example"} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-xs font-bold text-slate-100 outline-none" /></label>
+            <label className="block"><span className="mb-2 block text-sm font-bold text-slate-400">Model Route</span><input value={providerModel} onChange={(event) => setProviderModel(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-xs font-bold text-slate-100 outline-none" /></label>
           </div>
-
-          <label className="block">
-            <span className="mb-2 block text-sm font-bold text-slate-400">API Key (session only)</span>
-            <input
-              type="password"
-              value={sessionApiKey}
-              onChange={(event) => setSessionApiKey(event.target.value)}
-              placeholder="Paste provider API key for this browser session"
-              autoComplete="off"
-              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-xs font-bold text-slate-100 outline-none"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-2 block text-sm font-bold text-slate-400">Provider Base URL</span>
-            <input
-              value={providerBaseUrl}
-              onChange={(event) => setProviderBaseUrl(event.target.value)}
-              placeholder="https://integrate.api.nvidia.com/v1"
-              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-xs font-bold text-slate-100 outline-none"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-2 block text-sm font-bold text-slate-400">Model</span>
-            <input
-              value={providerModel}
-              onChange={(event) => setProviderModel(event.target.value)}
-              placeholder="nvidia/nemotron-3-ultra-550b-a55b"
-              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-xs font-bold text-slate-100 outline-none"
-            />
-          </label>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-          <p className="mb-3 flex items-center gap-2 text-sm font-black text-white">
-            <ServerCog className="h-4 w-4 text-cyan-300" />
-            AI generation request
-          </p>
-          <p className="text-sm font-semibold leading-6 text-slate-400">
-            {isMonthly
-              ? "Select the PDF target month, test backend connectivity, then generate the Remediation Guide through the AI server."
-              : "After upload, use the selected AI provider through your MVA backend to generate the Remediation Guide PDF."}
-          </p>
-        </div>
+        )}
 
         <label className="block">
           <span className="mb-2 block text-sm font-bold text-slate-400">PDF Target Month</span>
           <div className="relative">
-            <select
-              value={targetMonth}
-              onChange={(event) => onMonthChange(event.target.value)}
-              disabled={!hasMonths}
-              className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-bold text-slate-100 outline-none"
-            >
-              {hasMonths ? (
-                monthOptions.map((month) => <option key={month}>{month}</option>)
-              ) : (
-                <option value="">No month detected yet</option>
-              )}
+            <select value={targetMonth} onChange={(event) => onMonthChange(event.target.value)} disabled={!hasMonths} className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-bold text-slate-100 outline-none disabled:opacity-50">
+              {hasMonths ? monthOptions.map((month) => <option key={month}>{month}</option>) : <option value="">No month detected yet</option>}
             </select>
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
           </div>
         </label>
 
-        <label className="block">
-          <span className="mb-2 block text-sm font-bold text-slate-400">API Server Health URL</span>
-          <input
-            value={healthUrl}
-            onChange={(event) => setHealthUrl(event.target.value)}
-            placeholder={backendUrlPlaceholder(provider)}
-            className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-4 font-mono text-xs font-bold text-slate-100 outline-none"
-          />
-          <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-            This must be your deployed MVA backend endpoint, not the NVIDIA provider URL. The backend then calls NVIDIA securely.
-          </p>
-        </label>
-
         <div className="rounded-2xl border border-amber-300/20 bg-amber-300/10 p-4">
-          <p className="flex items-start gap-2 text-xs font-semibold leading-5 text-amber-100">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            Best practice: keep API keys on the backend. Session-pasted keys are for quick testing and are sent only to the configured MVA backend when you click test/generate.
-          </p>
+          <p className="flex items-start gap-2 text-xs font-semibold leading-5 text-amber-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />NVIDIA Build is a trial cloud endpoint, not an unlimited production service. For enterprise deployment, route calls through your MVA Cloud API and keep keys server-side.</p>
         </div>
 
-        {!compact && (
-          <div className="grid gap-3">
-            {providers.slice(0, 3).map((provider, index) => (
-              <div key={provider.name} className="flex items-center gap-3">
-                <span className={`h-4 w-4 rounded-full border ${index === 0 ? "border-emerald-400 bg-emerald-400/80" : "border-slate-500"}`} />
-                <div>
-                  <p className="font-bold text-slate-200">{provider.name}</p>
-                  <p className="text-xs font-semibold text-slate-500">{provider.helper}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {!compact && <p className="text-xs font-semibold leading-5 text-slate-500">Only the dashboard summary and the highest-priority normalized findings are included in the AI request. CSV comparison remains local.</p>}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={testConnectivity} className="ghost-button flex items-center justify-center gap-2">
-            <Wifi className="h-4 w-4" />
-            Test API Connectivity
-          </button>
-          <button type="button" onClick={generateReport} className="neon-button flex items-center justify-center gap-2">
-            <FileText className="h-4 w-4" />
-            Generate AI PDF Report
-          </button>
+          <button type="button" onClick={testConnectivity} className="ghost-button flex items-center justify-center gap-2"><Wifi className="h-4 w-4" />Test Cloud Connection</button>
+          <button type="button" onClick={generateReport} className="neon-button flex items-center justify-center gap-2"><FileText className="h-4 w-4" />Generate PDF Report</button>
         </div>
 
-        <div
-          className={`rounded-2xl border px-4 py-3 text-xs font-bold ${
-            connectionState.status === "success"
-              ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200"
-              : connectionState.status === "error"
-                ? "border-red-300/30 bg-red-400/10 text-red-200"
-                : connectionState.status === "testing"
-                  ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-200"
-                  : "border-white/10 bg-white/[0.035] text-slate-400"
-          }`}
-        >
-          API status: {connectionState.message}
-        </div>
-
-        <div
-          className={`rounded-2xl border px-4 py-3 text-xs font-bold ${
-            reportState.status === "success"
-              ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200"
-              : reportState.status === "error"
-                ? "border-red-300/30 bg-red-400/10 text-red-200"
-                : reportState.status === "testing"
-                  ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-200"
-                  : "border-white/10 bg-white/[0.035] text-slate-400"
-          }`}
-        >
-          PDF status: {reportState.message}
-        </div>
+        <StatusBox label="API status" state={connectionState} />
+        <StatusBox label="PDF status" state={reportState} />
       </div>
     </section>
   );
+}
+
+async function callNvidia({ baseUrl, apiKey, model, messages, maxTokens, signal, thinking }) {
+  const response = await fetch(joinUrl(baseUrl, "/chat/completions"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey.trim()}` },
+    body: JSON.stringify({
+      model: model.trim(),
+      messages,
+      temperature: thinking ? 1 : 0,
+      top_p: thinking ? 0.95 : 1,
+      max_tokens: maxTokens,
+      stream: false,
+      ...(thinking ? { chat_template_kwargs: { enable_thinking: true }, reasoning_budget: 4096 } : {}),
+    }),
+    signal,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload?.detail || payload?.error?.message || payload?.message || `NVIDIA returned HTTP ${response.status}.`);
+  return payload;
+}
+
+function prioritizedPayload(analysis, targetMonth) {
+  const snapshot = analysis.workflow === "monthly" ? analysis.snapshots?.find((item) => item.month === targetMonth) : null;
+  const findings = snapshot?.findings ?? (analysis.workflow === "monthly" ? analysis.currentFindings : analysis.findings);
+  return [...findings]
+    .sort((left, right) => ({ P1: 1, P2: 2, P3: 3, P4: 4 }[left.patchPriority] ?? 9) - ({ P1: 1, P2: 2, P3: 3, P4: 4 }[right.patchPriority] ?? 9) || right.assetExposure - left.assetExposure)
+    .slice(0, 80);
+}
+
+function StatusBox({ label, state }) {
+  const classes = state.status === "success" ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200" : state.status === "error" ? "border-red-300/30 bg-red-400/10 text-red-200" : state.status === "testing" ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-200" : "border-white/10 bg-white/[0.035] text-slate-400";
+  return <div className={`rounded-2xl border px-4 py-3 text-xs font-bold ${classes}`}>{label}: {state.message}</div>;
+}
+
+function joinUrl(baseUrl, path) {
+  return `${baseUrl.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function friendlyProviderError(error) {
+  const message = error?.message || "The cloud request failed.";
+  if (/failed to fetch/i.test(message)) return "The browser could not reach the cloud endpoint. Check the URL, VPN, provider CORS policy, or use MVA Cloud API.";
+  if (/401|unauthorized/i.test(message)) return "Unauthorized: generate a fresh API key and paste the complete nvapi- value for this session.";
+  if (/429|rate/i.test(message)) return "The provider trial limit was reached. Wait and retry, choose a smaller model, or use MVA Cloud API.";
+  return message;
+}
+
+function savePdfBlob(blob, name) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }

@@ -79,6 +79,51 @@ Reference workbook:
 output/excel/qualys_100plus_dashboard_sample.xlsx
 ```
 
+## CrowdStrike Monthly Comparison
+
+Upload these four detailed exports together. They include every raw field supplied for the CrowdStrike `Vulnerabilities` / `Vulnerability per asset` layout.
+
+```text
+samples/crowdstrike_100_row/crowdstrike_vulnerabilities_april_2026_100plus.csv
+samples/crowdstrike_100_row/crowdstrike_vulnerabilities_may_2026_100plus.csv
+samples/crowdstrike_100_row/crowdstrike_vulnerabilities_june_2026_100plus.csv
+samples/crowdstrike_100_row/crowdstrike_vulnerabilities_july_2026_100plus.csv
+```
+
+Expected movement:
+
+```text
+April open: 110
+May open/new/patched: 120 / 30 / 20
+June open/new/patched: 125 / 25 / 20
+July open/new/patched: 120 / 20 / 25
+Three-month discovered trend: 30, 25, 20
+Three-month patched trend: 20, 20, 25
+July patch priority: P1 24, P2 59, P3 18, P4 19
+July exploit available: 47
+July CISA KEV: 11
+July internet exposed: 24
+```
+
+Use this detailed alternative to validate the `Vulnerability per asset` selection:
+
+```text
+samples/crowdstrike_100_row/crowdstrike_vulnerability_per_asset_july_2026_100plus.csv
+```
+
+Use this aggregated export in Adhoc Scan only. The 100 CSV rows represent 542 weighted findings through the source `Count` field.
+
+```text
+samples/crowdstrike_100_row/crowdstrike_remediation_per_assets_july_2026_100plus.csv
+```
+
+Final references:
+
+```text
+output/excel/mva_crowdstrike_final_team_sample.xlsx
+output/pdf/mva_crowdstrike_final_remediation_guide.pdf
+```
+
 ## Adhoc Testing
 
 Use these for single-upload adhoc dashboard testing:
@@ -87,6 +132,8 @@ Use these for single-upload adhoc dashboard testing:
 samples/tenable_100_row/tenable_sc_july_2026_100plus.csv
 samples/tenable_100_row/tenable_io_july_2026_100plus.csv
 samples/qualys_100_row/qualys_adhoc_july_2026_100plus.csv
+samples/crowdstrike_100_row/crowdstrike_vulnerability_per_asset_july_2026_100plus.csv
+samples/crowdstrike_100_row/crowdstrike_remediation_per_assets_july_2026_100plus.csv
 ```
 
 ## PDF Reference Output

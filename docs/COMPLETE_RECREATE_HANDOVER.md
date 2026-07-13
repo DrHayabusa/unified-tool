@@ -1971,12 +1971,11 @@ Audit logs
 Secrets manager
 ```
 
-5. Add more source mappings.
+5. Add remaining source mappings.
 
 ```text
 MDVM fields
-CrowdStrike fields
-Qualys API exports
+Qualys API variants beyond the supplied exports
 Custom CSV field mapper
 ```
 
@@ -2002,13 +2001,16 @@ Repo public: yes
 Pages enabled: yes
 Pages URL HTTP 200: yes
 React build: passing
-Python compile: passing
-Local NVIDIA test: passing
-Local API health: passing
-Local API NVIDIA health: passing
-Local API PDF placeholder: passing
+React data/PDF and cross-source regression tests: 11/11 passing
+Python CrowdStrike/regression tests: 19/19 passing
+Explicit release checks: 496/496 passing
+80,000-row normalization/dashboard test: passing
+JavaScript 80,000-row browser-engine test: passing
+Excel reopen, integrity, formula, and all-sheet visual checks: passing
+PDF structure, content, links, and all-page visual checks: passing
+npm dependency audit: 0 vulnerabilities
+NVIDIA live endpoint: requires a fresh user session key and trial quota
 No tracked real API key: yes
-Git status clean before final doc changes: yes
 ```
 
 Final links:
@@ -2018,3 +2020,13 @@ Repo: https://github.com/DrHayabusa/unified-tool
 Live UI: https://drhayabusa.github.io/unified-tool/
 Samples: https://github.com/DrHayabusa/unified-tool/tree/main/samples
 ```
+
+## 32. CrowdStrike Release Addendum
+
+CrowdStrike `Vulnerabilities`, `Vulnerability per asset`, and weighted `Remediation per assets` exports are now implemented. The detailed mapping, source detection, dashboard formulas, PDF contract, NVIDIA model choice, synthetic data, test commands, and measured validation evidence are documented in:
+
+```text
+docs/CROWDSTRIKE_IMPLEMENTATION.md
+```
+
+This addendum supersedes earlier statements in this historical build log that listed CrowdStrike as future work.

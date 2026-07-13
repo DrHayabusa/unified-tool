@@ -24,14 +24,18 @@ export function SourceChoice({ selectedSourceId, onSelect }) {
             <button
               key={tool.id}
               type="button"
+              disabled={!tool.implemented}
               onClick={() => onSelect(tool.id)}
               className={`group relative min-h-44 rounded-2xl border p-4 text-left transition duration-200 ${
                 isSelected
                   ? "border-emerald-400/70 bg-emerald-400/12 shadow-glow"
-                  : "border-white/10 bg-slate-900/55 hover:-translate-y-1 hover:border-cyan-300/35 hover:bg-cyan-300/8"
+                  : tool.implemented
+                    ? "border-white/10 bg-slate-900/55 hover:-translate-y-1 hover:border-cyan-300/35 hover:bg-cyan-300/8"
+                    : "cursor-not-allowed border-white/5 bg-slate-950/35 opacity-45"
               }`}
             >
               {isSelected && <CheckCircle2 className="absolute right-4 top-4 h-5 w-5 text-emerald-300" />}
+              {!tool.implemented && <span className="absolute right-3 top-3 rounded-full border border-white/10 bg-slate-900 px-2 py-1 text-[0.6rem] font-black uppercase tracking-wide text-slate-400">Next</span>}
               <div className="mb-4 flex justify-center">
                 <SourceToolIcon id={tool.id} accent={tool.accent} />
               </div>

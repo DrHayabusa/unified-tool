@@ -76,7 +76,8 @@ function buildExecutiveSheet(sheet, monthlyDashboard, _adhocDashboard, sourceLab
   const remediatedTrend = monthlyDashboard.trend_remediated_last_3_months ?? [];
   const remediatedByMonth = Object.fromEntries(remediatedTrend.map((row) => [row.month, row.remediated_count]));
 
-  executiveTitle(sheet, "A2:L3", `MVA ${sourceLabel} Monthly Vulnerability Dashboard`);
+  const executiveSourceLabel = sourceLabel.toLowerCase().startsWith("mva ") ? sourceLabel : `MVA ${sourceLabel}`;
+  executiveTitle(sheet, "A2:L3", `${executiveSourceLabel} Monthly Vulnerability Dashboard`);
   executiveKpiRow(sheet, [
     ["Total Open", open.total_open],
     ["New This Month", open.new_vulnerabilities],
@@ -130,13 +131,13 @@ function buildExecutiveSheet(sheet, monthlyDashboard, _adhocDashboard, sourceLab
   }
   remediatedTrendChart.setPosition("I12", "L21");
 
-  executiveSectionHeader(sheet, "A24:C24", "3. Total Open by Patch Priority");
-  executiveTable(sheet, "A25:C29", [
-    ["Patch Priority", "Count", "Lane"],
-    ["P1", priorityCounts.P1 ?? 0, "Immediate"],
-    ["P2", priorityCounts.P2 ?? 0, "Priority"],
-    ["P3", priorityCounts.P3 ?? 0, "Planned"],
-    ["P4", priorityCounts.P4 ?? 0, "Deferred"],
+  executiveSectionHeader(sheet, "A24:B24", "3. Total Open by Patch Priority");
+  executiveTable(sheet, "A25:B29", [
+    ["Patch Priority", "Count"],
+    ["P1", priorityCounts.P1 ?? 0],
+    ["P2", priorityCounts.P2 ?? 0],
+    ["P3", priorityCounts.P3 ?? 0],
+    ["P4", priorityCounts.P4 ?? 0],
   ]);
   colorPriorityRows(sheet, 26, 29, 1);
 
@@ -156,13 +157,13 @@ function buildExecutiveSheet(sheet, monthlyDashboard, _adhocDashboard, sourceLab
   });
   priorityBarChart.setPosition("E24", "I33");
 
-  executiveSectionHeader(sheet, "A36:F36", "4. Total Open by Age and Patch Priority");
-  executiveTable(sheet, "A37:F41", [
-    ["Patch Priority", ">7 days", ">30 days", ">60 days", ">180 days", "Lane"],
-    ["P1", ageMatrix.P1?.[">7 days"] ?? 0, ageMatrix.P1?.[">30 days"] ?? 0, ageMatrix.P1?.[">60 days"] ?? 0, ageMatrix.P1?.[">180 days (6+ months)"] ?? 0, "Immediate"],
-    ["P2", ageMatrix.P2?.[">7 days"] ?? 0, ageMatrix.P2?.[">30 days"] ?? 0, ageMatrix.P2?.[">60 days"] ?? 0, ageMatrix.P2?.[">180 days (6+ months)"] ?? 0, "Priority"],
-    ["P3", ageMatrix.P3?.[">7 days"] ?? 0, ageMatrix.P3?.[">30 days"] ?? 0, ageMatrix.P3?.[">60 days"] ?? 0, ageMatrix.P3?.[">180 days (6+ months)"] ?? 0, "Planned"],
-    ["P4", ageMatrix.P4?.[">7 days"] ?? 0, ageMatrix.P4?.[">30 days"] ?? 0, ageMatrix.P4?.[">60 days"] ?? 0, ageMatrix.P4?.[">180 days (6+ months)"] ?? 0, "Deferred"],
+  executiveSectionHeader(sheet, "A36:E36", "4. Total Open by Age and Patch Priority");
+  executiveTable(sheet, "A37:E41", [
+    ["Patch Priority", ">7 days", ">30 days", ">60 days", ">180 days"],
+    ["P1", ageMatrix.P1?.[">7 days"] ?? 0, ageMatrix.P1?.[">30 days"] ?? 0, ageMatrix.P1?.[">60 days"] ?? 0, ageMatrix.P1?.[">180 days (6+ months)"] ?? 0],
+    ["P2", ageMatrix.P2?.[">7 days"] ?? 0, ageMatrix.P2?.[">30 days"] ?? 0, ageMatrix.P2?.[">60 days"] ?? 0, ageMatrix.P2?.[">180 days (6+ months)"] ?? 0],
+    ["P3", ageMatrix.P3?.[">7 days"] ?? 0, ageMatrix.P3?.[">30 days"] ?? 0, ageMatrix.P3?.[">60 days"] ?? 0, ageMatrix.P3?.[">180 days (6+ months)"] ?? 0],
+    ["P4", ageMatrix.P4?.[">7 days"] ?? 0, ageMatrix.P4?.[">30 days"] ?? 0, ageMatrix.P4?.[">60 days"] ?? 0, ageMatrix.P4?.[">180 days (6+ months)"] ?? 0],
   ]);
   colorPriorityRows(sheet, 38, 41, 1);
 
@@ -231,9 +232,9 @@ function buildMonthlySheet(sheet, dashboard, sourceLabel) {
     buckets[">60 days"],
     buckets[">180 days (6+ months)"],
   ]);
-  table(sheet, "A28:F32", [
-    ["Patch Priority", ">7 days", ">30 days", ">60 days", ">180 days (6+ months)", "Priority Lane"],
-    ...ageRows.map((row) => [...row, priorityLabel(row[0])]),
+  table(sheet, "A28:E32", [
+    ["Patch Priority", ">7 days", ">30 days", ">60 days", ">180 days (6+ months)"],
+    ...ageRows,
   ]);
   colorPriorityRows(sheet, 29, 32, 1);
 
@@ -258,16 +259,16 @@ function buildAdhocSheet(sheet, dashboard, sourceLabel) {
   kpiCard(sheet, "A4:C7", "TOTAL VULNERABILITIES", dashboard.total_vulnerabilities, "Current upload", TREND_BLUE);
 
   sectionTitle(sheet, "A10:C10", "Severity Counts");
-  table(sheet, "A11:C17", [
-    ["Severity", "Count", "Lane"],
-    ...Object.entries(dashboard.severity_counts).map(([severity, count]) => [severity, count, severity]),
+  table(sheet, "A11:B17", [
+    ["Severity", "Count"],
+    ...Object.entries(dashboard.severity_counts).map(([severity, count]) => [severity, count]),
   ]);
   colorSeverityRows(sheet, 12, 17);
 
   sectionTitle(sheet, "E10:H10", "Patch Priority Counts");
-  table(sheet, "E11:H15", [
-    ["Patch Priority", "Count", "Lane", ""],
-    ...Object.entries(dashboard.patch_priority_counts).map(([priority, count]) => [priority, count, priorityLabel(priority), ""]),
+  table(sheet, "E11:F15", [
+    ["Patch Priority", "Count"],
+    ...Object.entries(dashboard.patch_priority_counts).map(([priority, count]) => [priority, count]),
   ]);
   colorPriorityRows(sheet, 12, 15, 5);
 
@@ -290,6 +291,11 @@ function buildAdhocSheet(sheet, dashboard, sourceLabel) {
   }
   assetChart.setPosition("D21", "H36");
 
+  sheet.getRange("A:A").format.columnWidth = 34;
+  sheet.getRange("B:B").format.columnWidth = 20;
+  sheet.getRange("C:C").format.columnWidth = 6;
+  sheet.getRange("D:H").format.columnWidth = 16;
+  sheet.getRange("A:H").format.wrapText = true;
   sheet.freezePanes.freezeRows(2);
 }
 
@@ -416,7 +422,7 @@ function monthlyPolish(sheet) {
   sheet.getRange("A:L").format.autofitRows();
   sheet.getRange("A:A").format.columnWidth = 23;
   sheet.getRange("B:C").format.columnWidth = 15;
-  sheet.getRange("D:D").format.columnWidth = 5;
+  sheet.getRange("D:D").format.columnWidth = 15;
   sheet.getRange("E:L").format.columnWidth = 16;
   sheet.freezePanes.freezeRows(2);
 }
