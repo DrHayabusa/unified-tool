@@ -1,0 +1,25 @@
+{
+  "status": "PASS",
+  "input": "output/pdf/mva_tenable_io_final_remediation_guide.pdf",
+  "pages": 13,
+  "clickable_links": 11,
+  "checks_passed": 15,
+  "checks_total": 15,
+  "checks": {
+    "pdf_signature": true,
+    "title": true,
+    "page_count": true,
+    "all_pages_extract_text": true,
+    "contents": true,
+    "report_summary": true,
+    "remediation_actions": true,
+    "validation_expectations": true,
+    "tool_source": true,
+    "report_month": true,
+    "clickable_advisory_links": true,
+    "command_blocks_extract": true,
+    "unique_remediation_actions": true,
+    "banned_phrases_absent": true,
+    "not_encrypted": true
+  }
+}

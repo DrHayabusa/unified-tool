@@ -70,7 +70,7 @@ function buildMonthlySheet(workbook, analysis) {
   const open = dashboard.totalOpenVulnerabilities;
   const patched = dashboard.totalVulnerabilitiesPatchedLastMonth;
   prepareSheet(sheet, 12);
-  title(sheet, `${analysis.sourceLabel} Monthly Vulnerability Report`, dashboard.reportRange, 12);
+  title(sheet, `${reportSourceLabel(analysis.sourceLabel)} Monthly Vulnerability Report`, dashboard.reportRange, 12);
 
   kpi(sheet, "A4:C7", "TOTAL OPEN", open.totalOpen, "New + not closed", COLORS.teal);
   kpi(sheet, "D4:F7", "NEW THIS MONTH", open.newVulnerabilities, "Identified in current report", "0284C7");
@@ -194,6 +194,10 @@ function buildFindingsSheet(workbook, findings) {
 function prepareSheet(sheet, columns) {
   for (let index = 1; index <= columns; index += 1) sheet.getColumn(index).width = 14;
   sheet.properties.defaultRowHeight = 20;
+}
+
+function reportSourceLabel(sourceLabel) {
+  return String(sourceLabel ?? "MVA").replace(/\s+Monthly$/i, "").replace(/\s+Adhoc$/i, "");
 }
 
 function title(sheet, heading, subtitle, columns) {
