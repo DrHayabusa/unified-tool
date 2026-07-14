@@ -18,24 +18,25 @@ MVA is a browser-first vulnerability intake and remediation platform. It:
 4. Filters closed/suppressed records where the source provides a status.
 5. Applies the approved exploit-aware P1-P4 matrix.
 6. Calculates asset exposure on a 0-1000 scale.
-7. Produces adhoc or multi-month dashboards.
+7. Produces Adhoc, multi-month, and single-export three-month quarterly dashboards.
 8. Exports formatted Excel and normalized CSV reports.
 9. Generates a customer-ready Remediation Guide PDF locally or through an AI provider.
-10. Keeps the scanner comparison local and uses no database.
+10. Provides defensive Threat Intelligence from uploaded evidence, NVIDIA NIM, or organization APIs.
+11. Keeps scanner parsing, comparison, dashboards, and local exports in the browser and uses no database.
 
 Implemented source workflows:
 
-| Source | Adhoc | Monthly | Bundled samples |
-|---|---:|---:|---:|
-| Tenable.sc | Yes | Yes | Four months |
-| Tenable.io | Yes | Yes | Four months |
-| Qualys VMDR monthly export | Yes | Yes | Four months |
-| Qualys VMDR adhoc export | Yes | N/A | One file |
-| CrowdStrike Vulnerabilities | Yes | Yes | Four months |
-| CrowdStrike Vulnerability per asset | Yes | Yes | One file plus compatible monthly logic |
-| CrowdStrike Remediation per assets | Yes, weighted by `Count` | No, aggregated export | One file |
-| MDVM | Planned | Planned | No |
-| Custom CSV | Planned | Planned | No |
+| Source | Adhoc | Monthly | Quarterly scan | Bundled samples |
+|---|---:|---:|---:|---:|
+| Tenable.sc | Yes | Yes | Yes | Four months |
+| Tenable.io | Yes | Yes | Yes | Four months |
+| Qualys VMDR monthly export | Yes | Yes | Yes | Four months |
+| Qualys VMDR adhoc export | Yes | N/A | Only when discovery dates exist | One file |
+| CrowdStrike Vulnerabilities | Yes | Yes | Yes | Four months |
+| CrowdStrike Vulnerability per asset | Yes | Yes | Yes | One file plus compatible monthly logic |
+| CrowdStrike Remediation per assets | Yes, weighted by `Count` | No, aggregated export | No identity comparison | One file |
+| MDVM | Planned | Planned | Planned | No |
+| Custom CSV | Planned | Planned | Planned | No |
 
 MDVM and Custom CSV are visibly disabled rather than pretending to work.
 
@@ -45,9 +46,11 @@ MDVM and Custom CSV are visibly disabled rather than pretending to work.
 - Matching filenames replace only their earlier copy; every file can be removed independently or cleared as a group.
 - Monthly results expose `Edit Monthly Files` with the selection preserved and `Dashboard` for source/mode navigation.
 - CrowdStrike export choices and filename conventions are visible in both workflows. Remediation per assets remains correctly restricted to Adhoc.
-- Adhoc analysis exposes Excel and normalized CSV downloads.
+- Every implemented source has a complete Adhoc dashboard with six KPIs, Top 10 Affected Assets, remediation queue, Excel, normalized CSV, and PDF downloads.
+- Adhoc does not display a Top Products panel. Source-specific product data remains available internally when useful for normalization or future reporting.
 - CSV and XLSX use the same detection, normalization, scoring, dashboard, and reporting code after parsing.
 - Prepared source workbooks include native Discovered and Remediated line charts. Browser-generated Monthly Excel includes the same two charts as embedded images.
+- Threat Intelligence and AI PDF use the same NVIDIA relay contract and never send the raw uploaded file.
 
 ## 2. Architecture
 
@@ -62,10 +65,11 @@ flowchart LR
   Dashboards --> Excel["ExcelJS workbook"]
   Dashboards --> CSV["Normalized CSV"]
   Dashboards --> LocalPDF["jsPDF local Remediation Guide"]
-  Dashboards --> DirectAI["OpenRouter or Groq session route"]
-  Dashboards --> CloudAPI["MVA Cloud API"]
-  CloudAPI --> NVIDIA["NVIDIA NIM"]
-  DirectAI --> Markdown["Approved report Markdown"]
+  Dashboards --> Prompt["Prioritized summary and grouped findings"]
+  Prompt --> Relay["MVA HTTPS relay"]
+  UI --> Intel["Threat Intelligence request"]
+  Intel --> Relay
+  Relay --> NVIDIA["NVIDIA Build API / NIM"]
   NVIDIA --> Markdown
   Markdown --> LocalPDF
 ```
@@ -88,7 +92,7 @@ No scanner row is uploaded during parsing, comparison, dashboarding, Excel gener
 | Reference engine | Python 3 standard library | Independent normalization/dashboard regression oracle |
 | Reference PDF | ReportLab | Deterministic team sample and semantic/visual validation artifact |
 | Hosting | GitHub Pages + GitHub Actions | Public static frontend |
-| Optional API | Python prototype at `tools/mva_api_server.py` | NVIDIA proxy and enterprise PDF endpoint contract |
+| NVIDIA relay | Python standard-library service at `tools/mva_api_server.py` | CORS allowlist, request-size limit, session Bearer forwarding, and streamed NVIDIA responses |
 | Database | None | Stateless, upload-process-download architecture |
 
 Heavy export packages are code-split. ExcelJS is loaded only when the user requests an Excel file; jsPDF is loaded only for PDF generation.
@@ -103,15 +107,20 @@ react-ui/src/lib/vulnerabilityEngine.test.js regression and source tests
 react-ui/src/lib/uploadFiles.js               cumulative upload, deduplication, and removal rules
 react-ui/src/lib/uploadFiles.test.js          upload-state regression tests
 react-ui/src/lib/reportExport.js             Excel and normalized CSV exports
+react-ui/src/lib/reportExport.test.js        all-source Adhoc workbook completeness tests
 react-ui/src/lib/pdfReport.js                prompt, local Markdown, PDF renderer
 react-ui/src/lib/aiProviders.js               provider catalog and request layer
 react-ui/src/lib/aiProviders.test.js          provider security and payload tests
+react-ui/src/lib/threatIntel.js               local/AI intelligence prompts and response normalization
+react-ui/src/lib/threatIntel.test.js          intelligence aggregation and structured-response tests
 mva_engine/tenable_normalizer.py              independent Python normalizer
 mva_engine/tenable_dashboards.py              independent Python dashboards
 tools/run_release_validation.py               complete release validation
 tools/run_browser_80k_validation.mjs          browser-engine 80,000-row test
 tools/validate_workbook.py                    workbook structural checks
 tools/validate_remediation_pdf.py             PDF semantic checks
+tools/generate_adhoc_workbook_samples.mjs     final all-source Adhoc workbook builder
+tools/render_adhoc_workbook_evidence.mjs      workbook inspection, rendering, and formula-error scan
 docs/AI_PDF_GENERATION_PROMPT.md              strict AI report contract
 samples/                                      downloadable raw scanner test packs
 output/                                       approved sample artifacts and evidence
@@ -265,18 +274,31 @@ Input: one supported CSV.
 Output dashboard:
 
 ```text
-Total vulnerabilities
-Distinct affected assets
-Critical / High / Medium / Low / Info totals
-P1 / P2 / P3 / P4 totals
-Immediate patch needed (P1 + P2)
-Exploit available
+Total Open
+Critical
+High
+Medium
+Low
+Immediate Patch Needed (P1 + P2)
 Top 10 affected assets
-Top products where available
-Top recommended remediations where available
 ```
 
-The Excel workbook contains an Adhoc Report sheet and Report Data sheet. The PDF target month is inferred from the latest observation date when possible.
+The UI also shows severity and priority distributions, the approved matrix, source-field mapping, and the remediation queue. These are source-neutral components populated from the normalized findings, so SC, IO, Qualys, and CrowdStrike use the same visual contract.
+
+The Excel workbook contains:
+
+```text
+Adhoc Report - four KPIs, severity/priority tables, Top 10 Affected Assets, and asset concentration
+Report Data  - every normalized row and all 17 requested output columns
+```
+
+Qualys Adhoc does not contain `First Detected` or `Last Detected` in the user-supplied Adhoc schema. Those two output cells therefore say `Not provided by source export`; no date is invented. The PDF target period is inferred from source dates when possible.
+
+### Quarterly Scan Workflow
+
+The current quarterly mode follows the approved simple design: upload one current scan export containing discovery/observation dates. MVA summarizes all open findings and charts vulnerabilities first discovered in the export's latest three calendar months. It is not a hidden multi-quarter comparison and does not require three separate files.
+
+Quarterly outputs use the same metrics, matrix, remediation queue, Excel, normalized CSV, local PDF, and NVIDIA PDF controls as Adhoc, with an additional three-month discovery line chart.
 
 ## 10. Monthly Workflow
 
@@ -330,6 +352,15 @@ Report Data
 
 The workbook uses frozen headers, filters, readable widths, color-coded severity/priority values, and no `Lane` column.
 
+The final all-source browser-generated Adhoc workbooks are:
+
+```text
+final/Excel/Adhoc/MVA_Tenable_SC_Adhoc_Report.xlsx
+final/Excel/Adhoc/MVA_Tenable_IO_Adhoc_Report.xlsx
+final/Excel/Adhoc/MVA_Qualys_Adhoc_Report.xlsx
+final/Excel/Adhoc/MVA_CrowdStrike_Adhoc_Report.xlsx
+```
+
 ### Normalized CSV
 
 Exports the canonical MVA report schema with exploit availability rendered as Yes/No.
@@ -351,23 +382,40 @@ It must not include a customer name, purpose section, created-by line, internal 
 
 The exact AI contract is `docs/AI_PDF_GENERATION_PROMPT.md` and the browser prompt builder is `react-ui/src/lib/pdfReport.js`.
 
-## 12. AI Provider Design
+## 12. AI And Threat Intelligence Design
 
-| Provider option | Default model | Route |
-|---|---|---|
-| OpenRouter - Nemotron 3 Ultra | `nvidia/nemotron-3-ultra-550b-a55b:free` | Direct OpenAI-compatible HTTPS |
-| Groq - GPT OSS 120B | `openai/gpt-oss-120b` | Direct OpenAI-compatible HTTPS |
-| NVIDIA NIM - MVA Cloud Proxy | `nvidia/nemotron-3-ultra-550b-a55b` | MVA API `/health/nvidia` and `/generate/pdf` |
-| MVA Cloud API | `mva-remediation-agent` | Organization API `/health` and `/generate/pdf` |
-| Template PDF - No AI | None | Local browser generation |
+### NVIDIA PDF Route
 
-Direct cloud mode sends only the dashboard summary and up to 80 highest-priority normalized findings. Raw CSV comparison remains local.
+| Setting | Released value |
+|---|---|
+| Provider | NVIDIA NIM through the MVA HTTPS relay |
+| Default model | `nvidia/nemotron-3-ultra-550b-a55b` |
+| Browser endpoint | Configured build-time with `VITE_NVIDIA_RELAY_URL` |
+| GitHub variable | `MVA_NVIDIA_RELAY_URL` |
+| Relay endpoint | `/v1/chat/completions` |
+| Browser timeout | 10 minutes |
+| Typical tested guide time | Approximately 2-5 minutes |
+| Payload | Dashboard summary plus up to 60 grouped, highest-priority findings |
 
-Provider keys are session-only. Switching providers clears the key. OpenRouter attribution headers are added according to its API contract. All AI requests have bounded token counts and timeouts. Reasoning traces are not rendered into customer reports.
+NVIDIA's hosted `https://integrate.api.nvidia.com/v1` endpoint is server-compatible but does not permit direct GitHub Pages browser calls because of CORS. The frontend therefore refuses that URL for NVIDIA and requires the MVA relay URL. The relay receives the session-only `Authorization: Bearer` value, forwards it server-to-server, streams NVIDIA's event response, and does not log or persist the key.
 
-NVIDIA's provider endpoint is server-compatible but not directly browser-compatible due CORS. Use OpenRouter's Nemotron route for direct hosted testing or deploy the MVA Cloud API for the NVIDIA key.
+The currently configured `trycloudflare.com` address is a temporary demonstration tunnel backed by the process on this Mac. It is not a production SLA endpoint. Before team production, deploy `tools/mva_api_server.py` or an equivalent Worker/container behind an organization-owned HTTPS hostname, then set `MVA_NVIDIA_RELAY_URL` to that permanent `/v1` URL and rerun the Pages workflow.
 
-See `docs/API_KEYS.md` for the full security contract.
+### Threat Intelligence
+
+Threat Intelligence supports:
+
+1. Uploaded Scanner Data - searches the last analyzed normalized findings locally.
+2. NVIDIA NIM (Secure Relay) - generates defensive intelligence through the same relay.
+3. Tenable via MVA API - organization backend contract.
+4. MVA AI Server - organization AI service contract.
+5. OpenRouter / Nemotron - optional direct browser-compatible route.
+
+The NVIDIA response contract requires a JSON object containing summary, severity, CVSS, CVEs, affected products/versions, exploit status/evidence, defensive attack path, patches, remediation, detection steps, and HTTPS references. Structured patch/reference objects are normalized into readable text; `[object Object]` is explicitly regression-tested.
+
+No API health URL is required in the UI. NVIDIA needs only the session key, preconfigured relay URL, and model. Scanner parsing and comparisons remain local; only the explicit intelligence query or selected report summary is transmitted after the user clicks the corresponding action.
+
+See `docs/API_KEYS.md` and `docs/AI_PDF_GENERATION_PROMPT.md` for the security and report contracts.
 
 ## 13. Run Locally
 
@@ -397,13 +445,21 @@ npm ci
 npm run dev
 ```
 
-Optional local NVIDIA proxy test:
+Optional local NVIDIA relay:
 
 ```bash
 ./run-local-api.sh
 ```
 
-The prototype listens on `http://127.0.0.1:8000`. It is not a hardened production server.
+The relay listens on `http://127.0.0.1:8000`; its health check is `http://127.0.0.1:8000/health`, and its OpenAI-compatible route is `http://127.0.0.1:8000/v1/chat/completions`. It is suitable for controlled development and tunnel-based demonstrations, not a hardened production server.
+
+For a temporary public demonstration tunnel:
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:8000
+```
+
+Set the GitHub repository variable `MVA_NVIDIA_RELAY_URL` to the generated HTTPS URL plus `/v1`, then redeploy. Do not put an NVIDIA key in GitHub variables, source code, or the Pages bundle.
 
 ## 14. Public Deployment
 
@@ -412,8 +468,9 @@ The workflow `.github/workflows/deploy-pages.yml` runs on `main` and:
 1. Checks out the repository.
 2. Installs `react-ui` dependencies with `npm ci`.
 3. Runs the production build.
-4. Uploads `react-ui/dist` as a Pages artifact.
-5. Deploys GitHub Pages.
+4. Injects the repository variable `MVA_NVIDIA_RELAY_URL` as `VITE_NVIDIA_RELAY_URL`.
+5. Uploads `react-ui/dist` as a Pages artifact.
+6. Deploys GitHub Pages.
 
 Vite uses the repository base path `/unified-tool/` for production.
 
@@ -473,6 +530,10 @@ output/pdf/mva_final_remediation_guide.pdf
 output/validation/VALIDATION_EVIDENCE.md
 output/validation/release_validation.json
 output/validation/browser_80000_rows.json
+final/Excel/Adhoc/MVA_Tenable_SC_Adhoc_Report.xlsx
+final/Excel/Adhoc/MVA_Tenable_IO_Adhoc_Report.xlsx
+final/Excel/Adhoc/MVA_Qualys_Adhoc_Report.xlsx
+final/Excel/Adhoc/MVA_CrowdStrike_Adhoc_Report.xlsx
 ```
 
 ## 17. Validation
@@ -480,11 +541,11 @@ output/validation/browser_80000_rows.json
 Run the complete release checks:
 
 ```bash
-python3 -m unittest -v tests.test_crowdstrike_and_regressions
+python3 -m unittest discover -s tests -v
 python3 tools/run_release_validation.py
 node tools/run_browser_80k_validation.mjs
 cd react-ui
-npm test
+npm test -- --run
 npm run build
 npm audit --audit-level=moderate
 ```
@@ -512,7 +573,12 @@ React production build succeeds
 npm audit reports zero moderate-or-higher vulnerabilities
 Tracked secret scan returns no matches
 Public Pages URL returns HTTP 200
+All four Adhoc UI workflows retain complete rows and expose Excel, CSV, and PDF downloads
+NVIDIA Intelligence returns all six result sections with authoritative HTTPS references
+NVIDIA PDF reaches the downloaded-success state through the configured relay
 ```
+
+Release validation on 14 July 2026 completed with 32/32 JavaScript tests, 19/19 Python regression tests, a successful production build, zero formula errors in all four final Adhoc workbooks, four deployed-browser Adhoc source runs, a real NVIDIA Log4Shell Intelligence request, and a real NVIDIA Remediation Guide generation.
 
 ## 18. Rebuild Procedure
 
@@ -530,7 +596,7 @@ To reproduce the agent from an empty project:
 10. Build source and mode selection, then upload gates, then dashboards.
 11. Add lazy Excel/CSV exports and authoritative completion/error UI states.
 12. Add local PDF generation before external AI, so reports always remain available.
-13. Add AI providers through one OpenAI-compatible request layer and a separate backend contract.
+13. Add AI providers through one OpenAI-compatible request layer and a CORS-enabled server-side relay; never call NVIDIA Build API directly from GitHub Pages.
 14. Generate deterministic sample packs with controlled monthly movement.
 15. Build independent Python regression calculations to catch JavaScript drift.
 16. Add 80,000-row performance validation.
@@ -582,9 +648,10 @@ Do not add a database merely for convenience. Add persistence only after definin
 | Monthly says one month | Filenames lack distinct `Month YYYY` or only one file selected | Rename files and upload at least two distinct months |
 | Source mismatch | Selected tile does not match detected headers | Choose the correct source or inspect the export type |
 | No findings | All rows were closed/suppressed or required IDs/assets are empty | Review source status values and raw headers |
-| NVIDIA direct browser failure | Provider CORS policy | Use OpenRouter Nemotron or an HTTPS MVA Cloud API |
+| NVIDIA URL rejected before request | `integrate.api.nvidia.com` was entered in the relay field | Restore the prefilled MVA relay URL; NVIDIA Build API cannot be called directly by GitHub Pages |
+| `Failed to fetch` | Browser cannot reach the configured relay, stale cached build, VPN/firewall block, or stopped temporary tunnel | Hard-refresh once, retain the prefilled relay URL, verify `/health`, and allow the relay domain; deploy a permanent organization relay for team use |
 | Provider 401 | Invalid/expired/incomplete key | Generate a fresh provider-specific key |
-| PDF waits too long | Large/free model queue or provider limit | Retry, choose Groq, or use Template PDF |
+| PDF shows Generating | Full customer-ready output is still streaming | Keep the tab open for 2-5 minutes; use Local PDF if NVIDIA is queued or unavailable |
 | Port 8800 in use | Existing development server | Reuse `http://127.0.0.1:8800/` or stop the old process |
 | Excel appears silent | Browser download control or popup policy | Read the in-app export status and browser downloads list |
 
@@ -593,10 +660,12 @@ Do not add a database merely for convenience. Add persistence only after definin
 1. No real key in tracked files.
 2. No raw CSV/XLSX upload leaves the browser for local dashboards and exports.
 3. No AI call without explicit user action.
-4. Provider switch clears credentials.
+4. Session credentials are held only in React state and disappear on reload/navigation that remounts the component.
 5. Direct provider key is sent in the Authorization header only.
-6. AI receives at most 80 prioritized normalized findings.
+6. NVIDIA receives a report summary and at most 60 grouped, prioritized normalized findings, never the raw upload.
 7. Local template PDF always remains available.
 8. No invented remediation details are allowed by the prompt contract.
 9. Closed/suppressed source rows do not appear as open findings.
-10. Every public release is gated by tests, build, audit, artifact validation, and secret scan.
+10. Every public release is gated by tests, build, artifact validation, and secret scanning; dependency audit is included in the full release process.
+11. The relay CORS allowlist permits only the public MVA origin and approved localhost development origins by default.
+12. API keys shown in chat or demonstrations must be rotated afterward and must never be committed.
