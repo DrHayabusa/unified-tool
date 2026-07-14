@@ -1,13 +1,15 @@
+const NVIDIA_RELAY_URL = String(import.meta.env?.VITE_NVIDIA_RELAY_URL ?? "").trim();
+
 export const AI_PROVIDERS = Object.freeze([
   {
     id: "nvidia-nim",
     name: "NVIDIA NIM - Nemotron 3 Ultra",
-    helper: "Direct NVIDIA Build API access using a session-only key, base URL, and model route.",
+    helper: "NVIDIA Build API access through the MVA HTTPS relay because the hosted NVIDIA endpoint blocks browser CORS.",
     model: "nvidia/nemotron-3-ultra-550b-a55b",
-    baseUrl: "https://integrate.api.nvidia.com/v1",
+    baseUrl: NVIDIA_RELAY_URL,
     type: "openai",
     service: "nvidia",
-    badge: "Direct NVIDIA",
+    badge: "Secure relay",
     keyLabel: "NVIDIA API Key",
     keyPlaceholder: "nvapi-...",
     keyUrl: "https://build.nvidia.com/settings/api-keys",
@@ -83,6 +85,9 @@ export function validateProviderSettings({ provider, baseUrl, apiKey, model }) {
   if (!/^https:\/\//i.test(String(baseUrl).trim()) && !isLoopbackUrl(baseUrl)) {
     return "Use an HTTPS cloud URL. HTTP is accepted only for localhost development.";
   }
+  if (provider.service === "nvidia" && isHostedNvidiaUrl(baseUrl)) {
+    return "NVIDIA's hosted API blocks requests from GitHub Pages. Enter the MVA NVIDIA Relay URL, not integrate.api.nvidia.com.";
+  }
   if (provider.requiresKey && !String(apiKey || "").trim()) {
     return `Paste a ${provider.keyLabel} for this browser session.`;
   }
@@ -90,6 +95,14 @@ export function validateProviderSettings({ provider, baseUrl, apiKey, model }) {
     return "Enter a model route.";
   }
   return "";
+}
+
+export function isHostedNvidiaUrl(value) {
+  try {
+    return new URL(String(value).trim()).hostname.toLowerCase() === "integrate.api.nvidia.com";
+  } catch {
+    return false;
+  }
 }
 
 export function buildOpenAiRequest({ provider, baseUrl, apiKey, model, messages, maxTokens = 8192, report = false }) {
@@ -113,7 +126,7 @@ export function buildOpenAiRequest({ provider, baseUrl, apiKey, model, messages,
         temperature: report ? 0.2 : 0,
         top_p: report ? 0.9 : 1,
         max_tokens: maxTokens,
-        stream: false,
+        stream: provider.service === "nvidia",
       }),
     },
   };
@@ -132,6 +145,9 @@ export async function callOpenAiCompatible({
 }) {
   const { url, options } = buildOpenAiRequest({ provider, baseUrl, apiKey, model, messages, maxTokens, report });
   const response = await fetchImpl(url, { ...options, signal });
+  if (response.ok && response.headers?.get?.("content-type")?.includes("text/event-stream")) {
+    return readEventStream(response);
+  }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = payload?.error?.message || payload?.detail || payload?.message || `${provider.name} returned HTTP ${response.status}.`;
@@ -141,6 +157,64 @@ export async function callOpenAiCompatible({
     throw error;
   }
   return payload;
+}
+
+async function readEventStream(response) {
+  if (!response.body?.getReader) return parseEventStreamText(await response.text());
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let reasoning = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+    const lines = buffer.split(/\r?\n/);
+    buffer = done ? "" : lines.pop() ?? "";
+    for (const line of lines) {
+      const delta = parseEventLine(line);
+      content += delta.content;
+      reasoning += delta.reasoning;
+    }
+    if (done) break;
+  }
+  if (buffer) {
+    const delta = parseEventLine(buffer);
+    content += delta.content;
+    reasoning += delta.reasoning;
+  }
+  return completionPayload(content, reasoning);
+}
+
+export function parseEventStreamText(text) {
+  let content = "";
+  let reasoning = "";
+  for (const line of String(text || "").split(/\r?\n/)) {
+    const delta = parseEventLine(line);
+    content += delta.content;
+    reasoning += delta.reasoning;
+  }
+  return completionPayload(content, reasoning);
+}
+
+function parseEventLine(line) {
+  if (!line.startsWith("data:")) return { content: "", reasoning: "" };
+  const data = line.slice(5).trim();
+  if (!data || data === "[DONE]") return { content: "", reasoning: "" };
+  try {
+    const delta = JSON.parse(data)?.choices?.[0]?.delta ?? {};
+    return {
+      content: typeof delta.content === "string" ? delta.content : "",
+      reasoning: typeof delta.reasoning_content === "string" ? delta.reasoning_content : "",
+    };
+  } catch {
+    return { content: "", reasoning: "" };
+  }
+}
+
+function completionPayload(content, reasoning) {
+  return { choices: [{ message: { content, reasoning_content: reasoning } }] };
 }
 
 export function completionText(payload, { allowReasoning = false } = {}) {

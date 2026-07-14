@@ -5,7 +5,7 @@ import { buildLocalThreatIntel, buildThreatIntelPrompt, normalizeThreatIntel, pa
 
 const SOURCES = [
   { id: "local", label: "Uploaded Scanner Data", helper: "Search the currently analyzed Tenable, Qualys, or CrowdStrike findings locally.", icon: Search },
-  { id: "nvidia", label: "NVIDIA NIM", helper: "Use Nemotron with a session-only NVIDIA key, base URL, and model route.", icon: Bot },
+  { id: "nvidia", label: "NVIDIA NIM (Secure Relay)", helper: "Use Nemotron 3 Ultra through an MVA HTTPS relay with a session-only NVIDIA key. The model route remains editable.", icon: Bot },
   { id: "tenable-api", label: "Tenable via MVA API", helper: "Query Tenable intelligence through your organization-controlled backend.", icon: ShieldAlert },
   { id: "ai-server", label: "MVA AI Server", helper: "Request enriched vulnerability intelligence from your internal AI service.", icon: Server },
   { id: "openrouter", label: "OpenRouter / Nemotron", helper: "Session-only direct AI enrichment using an OpenRouter key.", icon: Bot },
@@ -35,7 +35,7 @@ export function ThreatIntelPanel({ analysis, onBackToDashboard }) {
     setStatus({ state: "loading", message: `Investigating ${searchText}...` });
     setResult(null);
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 90_000);
+    const timeout = window.setTimeout(() => controller.abort(), 300_000);
     try {
       if (sourceId === "local") {
         const intel = buildLocalThreatIntel(analysis, searchText);
@@ -82,7 +82,7 @@ export function ThreatIntelPanel({ analysis, onBackToDashboard }) {
       }
       setStatus({ state: "success", message: "Threat-intelligence analysis completed." });
     } catch (error) {
-      setStatus({ state: "error", message: error.name === "AbortError" ? "Threat-intelligence request timed out after 90 seconds." : error.message || "Threat-intelligence analysis failed." });
+      setStatus({ state: "error", message: error.name === "AbortError" ? "Threat-intelligence request timed out after 5 minutes." : error.message || "Threat-intelligence analysis failed." });
     } finally {
       window.clearTimeout(timeout);
     }
@@ -131,7 +131,7 @@ export function ThreatIntelPanel({ analysis, onBackToDashboard }) {
           {(sourceId === "openrouter" || sourceId === "nvidia") && (
             <div className="grid gap-4 rounded-2xl border border-white/10 bg-slate-900/55 p-4 lg:grid-cols-3">
               <label><span className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-wide text-slate-500"><KeyRound className="h-4 w-4" />{sourceId === "nvidia" ? "NVIDIA" : "OpenRouter"} key (session only)</span><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={sourceId === "nvidia" ? "nvapi-..." : "sk-or-v1-..."} autoComplete="off" className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 font-mono text-xs text-white outline-none focus:border-cyan-300/40" /></label>
-              <label><span className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">Provider base URL</span><input value={directBaseUrl} onChange={(event) => setDirectBaseUrl(event.target.value)} inputMode="url" className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 font-mono text-xs text-white outline-none focus:border-cyan-300/40" /></label>
+              <label><span className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">{sourceId === "nvidia" ? "MVA NVIDIA relay URL" : "Provider base URL"}</span><input value={directBaseUrl} onChange={(event) => setDirectBaseUrl(event.target.value)} placeholder={sourceId === "nvidia" ? "https://your-relay.example/v1" : "https://openrouter.ai/api/v1"} inputMode="url" className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 font-mono text-xs text-white outline-none focus:border-cyan-300/40" /></label>
               <label><span className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">Model route</span><input value={model} onChange={(event) => setModel(event.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 font-mono text-xs text-white outline-none focus:border-cyan-300/40" /></label>
             </div>
           )}

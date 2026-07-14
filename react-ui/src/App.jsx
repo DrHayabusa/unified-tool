@@ -221,7 +221,7 @@ function LandingHint({ selectedSource }) {
         {[
           [DatabaseZap, "Source-aware dashboards", `${selectedSource.name} mapping is selected and ready.`],
           [ShieldCheck, "Exploit-aware priority", "Each supported scanner's exploit signal feeds the same approved P1-P4 matrix."],
-          [BrainCircuit, "AI PDF generation", "Prioritized findings can be sent directly to your selected NVIDIA model for the approved Remediation Guide format."],
+          [BrainCircuit, "AI PDF generation", "Prioritized findings can be sent through the secure MVA relay to your selected NVIDIA model for the approved Remediation Guide format."],
         ].map(([Icon, title, body]) => (
           <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
             <Icon className="mb-4 h-8 w-8 text-red-300" />

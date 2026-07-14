@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Small local MVA API server for UI connectivity and NVIDIA health tests.
+"""Small MVA API relay for UI connectivity and NVIDIA requests.
 
 This server is intentionally dependency-free so it can run on a Mac with the
-standard Python install. It reads private keys from `.env`; do not put keys in
-the React frontend.
+standard Python install. Browser session keys are forwarded in memory and are
+never logged or written to disk.
 """
 
 from __future__ import annotations
 
 import json
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -17,8 +19,9 @@ from test_nvidia_connectivity import DEFAULT_BASE_URL, DEFAULT_MODEL, load_doten
 import os
 
 
-HOST = "127.0.0.1"
-PORT = 8000
+HOST = os.getenv("MVA_API_HOST", "127.0.0.1")
+PORT = int(os.getenv("MVA_API_PORT", "8000"))
+MAX_REQUEST_BYTES = int(os.getenv("MVA_MAX_REQUEST_BYTES", str(2 * 1024 * 1024)))
 ROOT = Path(__file__).resolve().parents[1]
 PROMPT_CONTRACT_PATH = ROOT / "docs" / "AI_PDF_GENERATION_PROMPT.md"
 
@@ -53,12 +56,19 @@ class MvaApiHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API.
         path = urlparse(self.path).path.rstrip("/") or "/"
         length = int(self.headers.get("Content-Length", "0") or 0)
+        if length > MAX_REQUEST_BYTES:
+            self.send_json({"ok": False, "error": "Request body exceeds the relay limit."}, status=413)
+            return
         raw_body = self.rfile.read(length) if length else b"{}"
 
         try:
             payload = json.loads(raw_body.decode("utf-8") or "{}")
         except json.JSONDecodeError:
             self.send_json({"ok": False, "error": "Invalid JSON body"}, status=400)
+            return
+
+        if path in {"/chat/completions", "/v1/chat/completions"}:
+            self.handle_openai_completion(payload)
             return
 
         if path == "/generate/pdf":
@@ -70,6 +80,63 @@ class MvaApiHandler(BaseHTTPRequestHandler):
             return
 
         self.send_json({"ok": False, "error": "Not found"}, status=404)
+
+    def handle_openai_completion(self, payload: dict) -> None:
+        """Forward one streaming OpenAI-compatible request to NVIDIA."""
+        authorization = self.headers.get("Authorization", "").strip()
+        api_key = authorization.removeprefix("Bearer ").strip() if authorization.startswith("Bearer ") else ""
+        if not api_key:
+            self.send_json({"error": {"message": "Missing NVIDIA bearer token."}}, status=401)
+            return
+
+        messages = payload.get("messages")
+        model = str(payload.get("model") or os.getenv("NVIDIA_MODEL", DEFAULT_MODEL)).strip()
+        if not isinstance(messages, list) or not messages or not model:
+            self.send_json({"error": {"message": "model and a non-empty messages array are required."}}, status=400)
+            return
+
+        upstream_payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": float(payload.get("temperature", 0)),
+            "top_p": float(payload.get("top_p", 1)),
+            "max_tokens": min(max(int(payload.get("max_tokens", 8192)), 1), 16384),
+            "seed": int(payload.get("seed", 42)),
+            "stream": True,
+        }
+        request = urllib.request.Request(
+            f"{os.getenv('NVIDIA_BASE_URL', DEFAULT_BASE_URL).rstrip('/')}/chat/completions",
+            data=json.dumps(upstream_payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+            },
+            method="POST",
+        )
+        try:
+            timeout = min(max(int(os.getenv("NVIDIA_TIMEOUT_SECONDS", "600")), 30), 900)
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                self.send_response(response.status)
+                self.send_cors_headers()
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache, no-transform")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                for line in response:
+                    self.wfile.write(line)
+                    self.wfile.flush()
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")
+            try:
+                upstream_error = json.loads(detail)
+            except json.JSONDecodeError:
+                upstream_error = {"error": {"message": detail[:1000] or f"NVIDIA returned HTTP {error.code}."}}
+            self.send_json(upstream_error, status=error.code)
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        except Exception as error:  # noqa: BLE001 - return concise upstream diagnostics.
+            self.send_json({"error": {"message": f"NVIDIA relay failed: {error}"}}, status=502)
 
     def handle_nvidia_health(self, payload: dict | None = None) -> None:
         payload = payload or {}
@@ -210,7 +277,20 @@ class MvaApiHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def send_cors_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin", "")
+        allowed = {
+            value.strip()
+            for value in os.getenv(
+                "MVA_ALLOWED_ORIGINS",
+                "https://drhayabusa.github.io,http://127.0.0.1:8801,http://localhost:8801",
+            ).split(",")
+            if value.strip()
+        }
+        if "*" in allowed:
+            self.send_header("Access-Control-Allow-Origin", "*")
+        elif origin in allowed:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         # Required when the GitHub Pages HTTPS frontend calls this localhost API.
@@ -301,10 +381,11 @@ def load_prompt_contract() -> str:
 def main() -> int:
     load_dotenv(ROOT / ".env")
     server = ThreadingHTTPServer((HOST, PORT), MvaApiHandler)
-    print(f"MVA local API server running at http://{HOST}:{PORT}")
+    print(f"MVA NVIDIA relay running at http://{HOST}:{PORT}")
     print("Health endpoints:")
     print(f"  http://{HOST}:{PORT}/health")
     print(f"  http://{HOST}:{PORT}/health/nvidia")
+    print(f"OpenAI-compatible relay: http://{HOST}:{PORT}/v1/chat/completions")
     server.serve_forever()
     return 0
 
