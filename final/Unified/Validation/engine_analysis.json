@@ -1,0 +1,206 @@
+{
+  "generatedAt": "2026-07-14T20:12:03.515Z",
+  "sourceIds": [
+    "tenable-sc",
+    "tenable-io",
+    "qualys",
+    "crowdstrike"
+  ],
+  "inputFiles": [
+    "samples/tenable_100_row/tenable_sc_april_2026_100plus.csv",
+    "samples/tenable_100_row/tenable_io_april_2026_100plus.csv",
+    "samples/qualys_100_row/qualys_monthly_april_2026_100plus.csv",
+    "samples/crowdstrike_100_row/crowdstrike_vulnerabilities_april_2026_100plus.csv",
+    "samples/tenable_100_row/tenable_sc_may_2026_100plus.csv",
+    "samples/tenable_100_row/tenable_io_may_2026_100plus.csv",
+    "samples/qualys_100_row/qualys_monthly_may_2026_100plus.csv",
+    "samples/crowdstrike_100_row/crowdstrike_vulnerabilities_may_2026_100plus.csv",
+    "samples/tenable_100_row/tenable_sc_june_2026_100plus.csv",
+    "samples/tenable_100_row/tenable_io_june_2026_100plus.csv",
+    "samples/qualys_100_row/qualys_monthly_june_2026_100plus.csv",
+    "samples/crowdstrike_100_row/crowdstrike_vulnerabilities_june_2026_100plus.csv",
+    "samples/tenable_100_row/tenable_sc_july_2026_100plus.csv",
+    "samples/tenable_100_row/tenable_io_july_2026_100plus.csv",
+    "samples/qualys_100_row/qualys_monthly_july_2026_100plus.csv",
+    "samples/crowdstrike_100_row/crowdstrike_vulnerabilities_july_2026_100plus.csv"
+  ],
+  "reportRange": "April 2026 - July 2026",
+  "inputSummary": {
+    "fileCount": 16,
+    "periodCount": 4,
+    "sourceCount": 4,
+    "sourceIds": [
+      "tenable-sc",
+      "tenable-io",
+      "qualys",
+      "crowdstrike"
+    ],
+    "normalizedObservations": 1840,
+    "consolidatedOpenFindings": 635,
+    "duplicatesRemoved": 1205
+  },
+  "periods": [
+    {
+      "period": "April 2026",
+      "month": "April 2026",
+      "totalOpen": 150,
+      "newFindings": 0,
+      "patchedFindings": 0,
+      "immediatePatch": 104,
+      "exploitable": 70,
+      "crossToolConfirmed": 40,
+      "singleSourceOnly": 110,
+      "confirmationRate": 26.7,
+      "repeatsRemoved": 260,
+      "P1": 42,
+      "P2": 62,
+      "P3": 23,
+      "P4": 23
+    },
+    {
+      "period": "May 2026",
+      "month": "May 2026",
+      "totalOpen": 160,
+      "newFindings": 30,
+      "patchedFindings": 20,
+      "immediatePatch": 110,
+      "exploitable": 74,
+      "crossToolConfirmed": 40,
+      "singleSourceOnly": 120,
+      "confirmationRate": 25,
+      "repeatsRemoved": 290,
+      "P1": 44,
+      "P2": 66,
+      "P3": 24,
+      "P4": 26
+    },
+    {
+      "period": "June 2026",
+      "month": "June 2026",
+      "totalOpen": 165,
+      "newFindings": 25,
+      "patchedFindings": 20,
+      "immediatePatch": 117,
+      "exploitable": 78,
+      "crossToolConfirmed": 40,
+      "singleSourceOnly": 125,
+      "confirmationRate": 24.2,
+      "repeatsRemoved": 320,
+      "P1": 44,
+      "P2": 73,
+      "P3": 23,
+      "P4": 25
+    },
+    {
+      "period": "July 2026",
+      "month": "July 2026",
+      "totalOpen": 160,
+      "newFindings": 20,
+      "patchedFindings": 25,
+      "immediatePatch": 113,
+      "exploitable": 77,
+      "crossToolConfirmed": 40,
+      "singleSourceOnly": 120,
+      "confirmationRate": 25,
+      "repeatsRemoved": 335,
+      "P1": 44,
+      "P2": 69,
+      "P3": 23,
+      "P4": 24
+    }
+  ],
+  "latest": {
+    "totalOpen": 160,
+    "distinctAssets": 85,
+    "immediatePatch": 113,
+    "exploitAvailable": 77,
+    "crossToolConfirmed": 40,
+    "singleSourceOnly": 120,
+    "confirmationRate": 25,
+    "severity": {
+      "Critical": 40,
+      "High": 40,
+      "Medium": 40,
+      "Low": 40,
+      "Info": 0,
+      "Unknown": 0
+    },
+    "priority": {
+      "P1": 44,
+      "P2": 69,
+      "P3": 23,
+      "P4": 24
+    },
+    "ageByPriority": {
+      "P1": {
+        ">7 days": 44,
+        ">30 days": 39,
+        ">60 days": 35,
+        ">180 days (6+ months)": 12
+      },
+      "P2": {
+        ">7 days": 69,
+        ">30 days": 61,
+        ">60 days": 46,
+        ">180 days (6+ months)": 11
+      },
+      "P3": {
+        ">7 days": 23,
+        ">30 days": 19,
+        ">60 days": 16,
+        ">180 days (6+ months)": 3
+      },
+      "P4": {
+        ">7 days": 24,
+        ">30 days": 21,
+        ">60 days": 18,
+        ">180 days (6+ months)": 5
+      }
+    },
+    "discoveredLast3Months": [
+      {
+        "month": "May 2026",
+        "period": "May 2026",
+        "discoveredCount": 30
+      },
+      {
+        "month": "June 2026",
+        "period": "June 2026",
+        "discoveredCount": 25
+      },
+      {
+        "month": "July 2026",
+        "period": "July 2026",
+        "discoveredCount": 20
+      }
+    ],
+    "patchedLast3Months": [
+      {
+        "month": "May 2026",
+        "period": "May 2026",
+        "remediatedCount": 20
+      },
+      {
+        "month": "June 2026",
+        "period": "June 2026",
+        "remediatedCount": 20
+      },
+      {
+        "month": "July 2026",
+        "period": "July 2026",
+        "remediatedCount": 25
+      }
+    ]
+  },
+  "validation": {
+    "valid": true,
+    "checks": {
+      "discoveredTrendLast3Periods": true,
+      "totalOpenIdentity": true,
+      "totalOpenByPatchPriority": true,
+      "ageByPatchPriority": true,
+      "patchedTrendAndFormula": true
+    },
+    "failures": []
+  }
+}

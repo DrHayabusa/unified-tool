@@ -1,3 +1,5 @@
+import { buildUnifiedInsights } from "./vulnerabilityEngine.js";
+
 export function buildRemediationPrompt({ analysis, targetMonth }) {
   const findings = groupedPrioritizedFindings(analysis, targetMonth).slice(0, 60).map((group) => ({
     affectedFindings: group.affectedCount,
@@ -13,20 +15,10 @@ export function buildRemediationPrompt({ analysis, targetMonth }) {
   }));
   const dashboard = analysis?.dashboard ?? {};
   const comparison = isComparisonWorkflow(analysis);
+  const portfolio = buildPortfolioContext(analysis, targetMonth);
   const quarterly = analysis?.workflow === "quarterly";
   const periodName = quarterly ? "Quarter" : ["adhoc", "quarterly-scan"].includes(analysis?.workflow) ? "Period" : "Month";
-  const summary = comparison
-    ? {
-        totalOpen: dashboard.totalOpenVulnerabilities?.totalOpen,
-        [`newThis${periodName}`]: dashboard.totalOpenVulnerabilities?.newVulnerabilities,
-        [`patchedLast${periodName}`]: (dashboard.totalVulnerabilitiesPatchedLastPeriod ?? dashboard.totalVulnerabilitiesPatchedLastMonth)?.patchedCount,
-        patchPriority: dashboard.totalOpenByPatchPriority,
-      }
-    : {
-        totalOpen: dashboard.totalVulnerabilities,
-        patchPriority: dashboard.patchPriorityCounts,
-        severity: dashboard.severityCounts,
-      };
+  const summary = buildSelectedPeriodSummary(analysis, targetMonth, periodName);
 
   return `You are the MVA Remediation Guide generation engine. Return customer-ready Markdown only.
 
@@ -39,16 +31,20 @@ Create an industry-standard document with this exact document identity:
 
 Required structure:
 1. A clean Contents section.
-2. Report Summary with only actionable counts and priorities.
-3. Remediation Actions ordered P1, P2, P3, then P4.
-4. Group repeated findings by CVE or vulnerability name. For every action include affected finding count, example assets, CVE, severity, patch priority, reference links, prerequisites, numbered remediation steps, command examples, rollback, and validation.
-5. Put every command in a fenced code block with a language tag (bash, powershell, sql, or text).
-6. Use only commands supported by the supplied remediation text or authoritative link context. Use explicit placeholders where exact product paths or versions are unknown.
-7. End with Validation Requirements and a Reference Appendix.
-8. Do not invent patch versions, KB numbers, CVEs, links, or successful validation evidence.
+2. Portfolio Risk Overview with actionable counts, P1-P4 posture, cross-scanner confirmation, and source contribution when combined scanner analytics are supplied.
+3. Trend Analysis with total open, new, patched, P1-P4, cross-tool confirmed, and single-source movement when historical analytics are supplied.
+4. Remediation Actions ordered P1, P2, P3, then P4.
+5. Group repeated findings by CVE or vulnerability name. For every action include affected finding count, example assets, CVE, severity, patch priority, reference links, prerequisites, numbered remediation steps, command examples, rollback, and validation.
+6. Put every command in a fenced code block with a language tag (bash, powershell, sql, or text).
+7. Use only commands supported by the supplied remediation text or authoritative link context. Use explicit placeholders where exact product paths or versions are unknown.
+8. End with Validation Requirements and a Reference Appendix.
+9. Do not invent patch versions, KB numbers, CVEs, links, commands, or successful validation evidence.
 
 Dashboard summary:
 ${JSON.stringify(summary, null, 2)}
+
+Combined portfolio analytics for the selected reporting period:
+${JSON.stringify(portfolio, null, 2)}
 
 Prioritized normalized findings:
 ${JSON.stringify(findings, null, 2)}
@@ -59,26 +55,82 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
   const groups = groupedPrioritizedFindings(analysis, targetMonth).slice(0, 20);
   const dashboard = analysis?.dashboard ?? {};
   const comparison = isComparisonWorkflow(analysis);
+  const portfolio = buildPortfolioContext(analysis, targetMonth);
   const periodName = analysis?.workflow === "quarterly" ? "Quarter" : ["adhoc", "quarterly-scan"].includes(analysis?.workflow) ? "Period" : "Month";
-  const total = comparison ? dashboard.totalOpenVulnerabilities?.totalOpen : dashboard.totalVulnerabilities;
+  const total = selectedReportFindings(analysis, targetMonth).reduce((sum, finding) => sum + (Number(finding.recordCount) || 1), 0)
+    || (comparison ? dashboard.totalOpenVulnerabilities?.totalOpen : dashboard.totalVulnerabilities);
+  const hasTrend = (portfolio?.trend?.length ?? 0) > 1;
+  const remediationSection = hasTrend ? 3 : 2;
+  const validationSection = remediationSection + 1;
+  const referenceSection = validationSection + 1;
   const lines = [
     "# Remediation Guide",
     "",
     "## Contents",
     "",
-    "1. Report Summary",
-    "2. Remediation Actions",
-    "3. Validation Requirements",
-    "4. Reference Appendix",
+    "1. Portfolio Risk Overview",
+    ...(hasTrend ? ["2. Trend Analysis"] : []),
+    `${remediationSection}. Remediation Actions`,
+    `${validationSection}. Validation Requirements`,
+    `${referenceSection}. Reference Appendix`,
     "",
-    "## 1. Report Summary",
+    "## 1. Portfolio Risk Overview",
     "",
     `Tool Source: ${analysis?.sourceLabel || "MVA"}`,
     `Reporting ${periodName}: ${targetMonth}`,
     `Total Open Findings: ${total ?? 0}`,
-    "",
-    "## 2. Remediation Actions",
   ];
+  if (portfolio) {
+    lines.push(
+      "",
+      "| Measure | Value |",
+      "| --- | ---: |",
+      `| Consolidated Open | ${portfolio.totalOpen} |`,
+      `| Affected Assets | ${portfolio.distinctAssets} |`,
+      `| Immediate Patch (P1 + P2) | ${portfolio.immediatePatch} |`,
+      `| Exploit Available | ${portfolio.exploitAvailable} |`,
+      `| Cross-tool Confirmed | ${portfolio.crossToolConfirmed} |`,
+      `| Single-source Only | ${portfolio.singleSourceOnly} |`,
+      `| Confirmation Rate | ${portfolio.confirmationRate}% |`,
+      "",
+      "### Patch Priority Posture",
+      "",
+      "| Priority | Open Findings |",
+      "| --- | ---: |",
+      ...Object.entries(portfolio.patchPriorityCounts).map(([priority, count]) => `| ${priority} | ${count} |`),
+    );
+    if (portfolio.sourceContribution.length) {
+      lines.push(
+        "",
+        "### Scanner Contribution",
+        "",
+        "| Scanner | Observed | P1 + P2 | Exploit Available | Cross-tool Confirmed | Source-only |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+        ...portfolio.sourceContribution.map((source) => `| ${source.sourceLabel} | ${source.openFindings} | ${source.immediatePatch} | ${source.exploitAvailable} | ${source.crossToolConfirmed} | ${source.exclusiveFindings} |`),
+      );
+    }
+    if (portfolio.topRiskAssets.length) {
+      lines.push(
+        "",
+        "### Highest-Risk Assets",
+        "",
+        "| Asset | Open | P1 + P2 | Critical | Exploit Available | Sources | Exposure |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ...portfolio.topRiskAssets.slice(0, 8).map((asset) => `| ${markdownTableText(asset.asset)} | ${asset.totalOpen} | ${asset.immediatePatch} | ${asset.critical} | ${asset.exploitAvailable} | ${asset.sourceCount} | ${asset.maxExposure} |`),
+      );
+    }
+  }
+  if (hasTrend) {
+    lines.push(
+      "",
+      "## 2. Trend Analysis",
+      "",
+      "| Period | Total Open | New | Patched | P1 | P2 | P3 | P4 | Confirmed | Single-source |",
+      "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+      ...portfolio.trend.map((row) => `| ${row.period} | ${row.totalOpen} | ${row.newFindings} | ${row.patchedFindings} | ${row.P1} | ${row.P2} | ${row.P3} | ${row.P4} | ${row.crossToolConfirmed} | ${row.singleSourceOnly} |`),
+    );
+  }
+  lines.push("", `## ${remediationSection}. Remediation Actions`);
   groups.forEach((group, index) => {
     const finding = group.finding;
     const commands = commandForFinding(finding);
@@ -102,15 +154,20 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
       `\`\`\`${commands.language}`,
       ...commands.lines,
       "```",
+      "",
+      "Rollback and validation:",
+      "",
+      "- Use the approved change rollback procedure if service-health checks fail.",
+      "- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.",
     );
   });
   lines.push(
     "",
-    "## 3. Validation Requirements",
+    `## ${validationSection}. Validation Requirements`,
     "",
     "Confirm service health, review change evidence, and verify closure in a follow-up vulnerability scan.",
     "",
-    "## 4. Reference Appendix",
+    `## ${referenceSection}. Reference Appendix`,
     "",
     ...[...new Set(groups.flatMap((group) => group.links))].map((link) => `- ${link}`),
   );
@@ -118,6 +175,11 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
 }
 
 export async function downloadRemediationPdf({ markdown, sourceLabel, targetMonth, workflow = "monthly" }) {
+  const doc = await createRemediationPdfDocument({ markdown, sourceLabel, targetMonth, workflow });
+  doc.save(`MVA_${safeName(sourceLabel)}_${safeName(targetMonth)}_Remediation_Guide.pdf`);
+}
+
+export async function createRemediationPdfDocument({ markdown, sourceLabel, targetMonth, workflow = "monthly" }) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
   doc.setProperties({
@@ -151,7 +213,9 @@ export async function downloadRemediationPdf({ markdown, sourceLabel, targetMont
   doc.text("Contents", margin, 126);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  const contents = extractHeadings(markdown).filter((heading) => heading.level === 2).slice(0, 10);
+  const contents = extractHeadings(markdown)
+    .filter((heading) => heading.level === 2 && heading.text.replace(/^\d+\.\s*/, "").toLowerCase() !== "contents")
+    .slice(0, 10);
   let contentsY = 137;
   contents.forEach((heading, index) => {
     doc.text(`${index + 1}. ${heading.text.replace(/^\d+\.\s*/, "")}`, margin + 2, contentsY);
@@ -159,9 +223,19 @@ export async function downloadRemediationPdf({ markdown, sourceLabel, targetMont
   });
 
   doc.addPage();
-  renderMarkdown(doc, markdown, { margin, width, height });
+  renderMarkdown(doc, stripCoverContent(markdown), { margin, width, height });
   addFooters(doc, margin, width, height);
-  doc.save(`MVA_${safeName(sourceLabel)}_${safeName(targetMonth)}_Remediation_Guide.pdf`);
+  return doc;
+}
+
+function stripCoverContent(markdown) {
+  const lines = String(markdown ?? "").replace(/\r/g, "").split("\n");
+  const contentsIndex = lines.findIndex((line) => /^##\s+Contents\s*$/i.test(line.trim()));
+  const firstBodyIndex = contentsIndex >= 0
+    ? lines.findIndex((line, index) => index > contentsIndex && /^##\s+/.test(line.trim()))
+    : -1;
+  const body = firstBodyIndex >= 0 ? lines.slice(firstBodyIndex) : lines.filter((line) => !/^#\s+Remediation Guide\s*$/i.test(line.trim()));
+  return body.join("\n").trim();
 }
 
 function renderMarkdown(doc, markdown, { margin, width, height }) {
@@ -191,20 +265,57 @@ function renderMarkdown(doc, markdown, { margin, width, height }) {
     codeLines = [];
   };
 
-  lines.forEach((rawLine) => {
+  const renderTable = (rows) => {
+    if (!rows.length) return;
+    const columnCount = Math.max(...rows.map((row) => row.length));
+    const availableWidth = width - margin * 2;
+    const firstWidth = columnCount <= 3 ? availableWidth * 0.45 : availableWidth * 0.24;
+    const remainingWidth = columnCount > 1 ? (availableWidth - firstWidth) / (columnCount - 1) : availableWidth;
+    const columnWidths = Array.from({ length: columnCount }, (_, index) => index === 0 ? firstWidth : remainingWidth);
+    const fontSize = columnCount >= 8 ? 5.5 : columnCount >= 6 ? 6.2 : 7.3;
+    const lineHeight = fontSize * 0.42;
+
+    const drawRow = (values, header, shade) => {
+      doc.setFont("helvetica", header ? "bold" : "normal");
+      doc.setFontSize(fontSize);
+      const wrappedCells = columnWidths.map((columnWidth, index) => doc.splitTextToSize(cleanMarkdown(values[index] ?? ""), columnWidth - 3));
+      const rowHeight = Math.max(7, ...wrappedCells.map((cellLines) => cellLines.length * lineHeight + 4));
+      if (y + rowHeight > height - 18) {
+        doc.addPage();
+        y = 22;
+      }
+      let x = margin;
+      wrappedCells.forEach((cellLines, index) => {
+        doc.setFillColor(...(header ? [20, 33, 61] : shade ? [248, 250, 252] : [241, 245, 249]));
+        doc.setDrawColor(203, 213, 225);
+        doc.rect(x, y, columnWidths[index], rowHeight, "FD");
+        doc.setTextColor(...(header ? [255, 255, 255] : [51, 65, 85]));
+        doc.text(cellLines, x + 1.5, y + 4);
+        x += columnWidths[index];
+      });
+      y += rowHeight;
+    };
+
+    drawRow(rows[0], true, false);
+    rows.slice(1).forEach((row, index) => drawRow(row, false, index % 2 === 0));
+    y += 4;
+  };
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const rawLine = lines[lineIndex];
     const line = rawLine.trimEnd();
     if (line.startsWith("```")) {
       if (inCode) renderCode();
       inCode = !inCode;
-      return;
+      continue;
     }
     if (inCode) {
       codeLines.push(rawLine);
-      return;
+      continue;
     }
     if (!line.trim()) {
       y += 3;
-      return;
+      continue;
     }
 
     const heading = line.match(/^(#{1,4})\s+(.+)$/);
@@ -219,7 +330,22 @@ function renderMarkdown(doc, markdown, { margin, width, height }) {
       const wrapped = doc.splitTextToSize(text, width - margin * 2);
       doc.text(wrapped, margin, y);
       y += wrapped.length * (size * 0.43) + 4;
-      return;
+      continue;
+    }
+
+    if (/^\s*\|.*\|\s*$/.test(line)) {
+      const tableLines = [];
+      let cursor = lineIndex;
+      while (cursor < lines.length && /^\s*\|.*\|\s*$/.test(lines[cursor])) {
+        tableLines.push(lines[cursor]);
+        cursor += 1;
+      }
+      const rows = tableLines
+        .map((tableLine) => tableLine.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim()))
+        .filter((row) => !row.every((cell) => /^:?-{3,}:?$/.test(cell)));
+      renderTable(rows);
+      lineIndex = cursor - 1;
+      continue;
     }
 
     const bullet = line.match(/^[-*]\s+(.+)$/);
@@ -240,7 +366,7 @@ function renderMarkdown(doc, markdown, { margin, width, height }) {
       });
     }
     y += wrapped.length * 4.5 + 2;
-  });
+  }
   if (inCode || codeLines.length) renderCode();
 }
 
@@ -268,10 +394,80 @@ function addFooters(doc, margin, width, height) {
   }
 }
 
-function prioritizedFindings(analysis, targetMonth) {
+function buildPortfolioContext(analysis, targetMonth) {
   const comparison = isComparisonWorkflow(analysis);
   const selectedSnapshot = comparison ? analysis.snapshots?.find((snapshot) => snapshot.month === targetMonth) : null;
-  const findings = selectedSnapshot?.findings ?? (comparison ? analysis.currentFindings : analysis?.findings ?? []);
+  const findings = selectedReportFindings(analysis, targetMonth);
+  const sourceCount = selectedSnapshot?.inputSummary?.sourceCount
+    ?? analysis?.inputSummary?.sourceCount
+    ?? analysis?.sourceIds?.length
+    ?? 0;
+  if (sourceCount < 2 || !findings.length) return null;
+  const insights = buildUnifiedInsights(findings, sourceCount);
+  const allTrend = analysis?.dashboard?.unifiedTrend ?? [];
+  const targetIndex = allTrend.findIndex((row) => row.period === targetMonth || row.month === targetMonth);
+  const trend = targetIndex >= 0 ? allTrend.slice(0, targetIndex + 1) : allTrend;
+  const inputSummary = selectedSnapshot?.inputSummary ?? analysis?.inputSummary ?? {};
+  const sourceContribution = selectedSnapshot?.sourceBreakdown ?? analysis?.dashboard?.sourceBreakdown ?? [];
+  return {
+    selectedSources: analysis?.sourceIds ?? inputSummary.sourceIds ?? [],
+    totalOpen: insights.totalOpen,
+    distinctAssets: insights.distinctAssets,
+    immediatePatch: insights.immediatePatch,
+    exploitAvailable: insights.exploitAvailable,
+    crossToolConfirmed: insights.crossToolConfirmed,
+    singleSourceOnly: insights.singleSourceOnly,
+    confirmationRate: insights.confirmationRate,
+    repeatedObservationsRemoved: inputSummary.duplicatesRemoved ?? 0,
+    patchPriorityCounts: insights.patchPriorityCounts,
+    severityCounts: insights.severityCounts,
+    sourceAgreementDistribution: insights.sourceAgreementDistribution,
+    sourceContribution,
+    sourcePairOverlap: insights.sourcePairOverlap,
+    topRiskAssets: insights.topRiskAssets,
+    topVulnerabilities: insights.topVulnerabilities,
+    trend,
+  };
+}
+
+function selectedReportFindings(analysis, targetMonth) {
+  const comparison = isComparisonWorkflow(analysis);
+  const selectedSnapshot = comparison ? analysis.snapshots?.find((snapshot) => snapshot.month === targetMonth) : null;
+  return selectedSnapshot?.findings ?? (comparison ? analysis?.currentFindings ?? [] : analysis?.findings ?? []);
+}
+
+function buildSelectedPeriodSummary(analysis, targetMonth, periodName) {
+  const findings = selectedReportFindings(analysis, targetMonth);
+  const summary = {
+    totalOpen: weightedFindingTotal(findings),
+    patchPriority: weightedFindingCounts(findings, "patchPriority", ["P1", "P2", "P3", "P4"]),
+    severity: weightedFindingCounts(findings, "severity", ["Critical", "High", "Medium", "Low", "Info", "Unknown"]),
+  };
+  if (!isComparisonWorkflow(analysis)) return summary;
+
+  const trend = analysis?.dashboard?.openTrend?.find((row) => row.period === targetMonth || row.month === targetMonth);
+  return {
+    ...summary,
+    [`newThis${periodName}`]: Number(trend?.newThisPeriod ?? trend?.newThisMonth) || 0,
+    [`patchedLast${periodName}`]: Number(trend?.patchedSinceLastPeriod ?? trend?.patchedSinceLastMonth) || 0,
+  };
+}
+
+function weightedFindingTotal(findings) {
+  return findings.reduce((sum, finding) => sum + (Number(finding.recordCount) || 1), 0);
+}
+
+function weightedFindingCounts(findings, field, labels) {
+  const counts = Object.fromEntries(labels.map((label) => [label, 0]));
+  findings.forEach((finding) => {
+    const label = labels.includes(finding[field]) ? finding[field] : labels.at(-1);
+    counts[label] += Number(finding.recordCount) || 1;
+  });
+  return counts;
+}
+
+function prioritizedFindings(analysis, targetMonth) {
+  const findings = selectedReportFindings(analysis, targetMonth);
   return [...findings].sort((left, right) => priorityRank(left.patchPriority) - priorityRank(right.patchPriority) || right.assetExposure - left.assetExposure);
 }
 
@@ -336,6 +532,10 @@ function extractHeadings(markdown) {
 
 function cleanMarkdown(value) {
   return String(value).replace(/\*\*(.*?)\*\*/g, "$1").replace(/`([^`]+)`/g, "$1").replace(/\[(.*?)\]\((.*?)\)/g, "$1 ($2)");
+}
+
+function markdownTableText(value) {
+  return String(value ?? "").replaceAll("|", "/").replace(/\s+/g, " ").trim();
 }
 
 function priorityRank(priority) {

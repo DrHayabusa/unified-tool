@@ -2,8 +2,9 @@ import { CheckCircle2, Layers3, ScanLine } from "lucide-react";
 import { SourceToolIcon } from "./ToolIcons.jsx";
 import { sourceTools } from "../data/dashboardData.js";
 
-export function SourceChoice({ selectionMode = "single", selectedSourceIds = [], onModeChange, onToggle }) {
+export function SourceChoice({ selectionMode = "single", selectedSourceIds = [], onModeChange, onToggle, onSelectAll, onClear }) {
   const unified = selectionMode === "multi";
+  const selectionReady = !unified || selectedSourceIds.length >= 2;
   return (
     <section className="cyber-panel rounded-[1.75rem] p-5">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
@@ -27,15 +28,26 @@ export function SourceChoice({ selectionMode = "single", selectedSourceIds = [],
               : "Select one tool for its established Adhoc, monthly, or quarterly workflow."}
           </p>
         </div>
-        <span className="rounded-full border border-red-300/20 bg-black/25 px-3 py-2 text-xs font-black text-red-100">
-          {unified ? `${selectedSourceIds.length} tools selected` : "Auto field mapping"}
-        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className={`rounded-full border bg-black/25 px-3 py-2 text-xs font-black ${selectionReady ? "border-red-300/20 text-red-100" : "border-amber-300/30 text-amber-200"}`}>
+            {unified ? `${selectedSourceIds.length} selected${selectionReady ? "" : " · choose at least 2"}` : "Auto field mapping"}
+          </span>
+          {unified && (
+            <>
+              <button type="button" onClick={onSelectAll} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-200 transition hover:border-red-300/30 hover:text-white">
+                Select all
+              </button>
+              <button type="button" onClick={onClear} disabled={selectedSourceIds.length === 0} className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs font-black text-slate-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-35">
+                Clear
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {sourceTools.map((tool) => {
           const isSelected = selectedSourceIds.includes(tool.id);
-          const minimumSelection = unified && isSelected && selectedSourceIds.length <= 2;
 
           return (
             <button
@@ -43,7 +55,6 @@ export function SourceChoice({ selectionMode = "single", selectedSourceIds = [],
               type="button"
               disabled={!tool.implemented}
               aria-pressed={isSelected}
-              title={minimumSelection ? "Unified mode requires at least two selected tools" : undefined}
               onClick={() => onToggle?.(tool.id)}
               className={`group relative min-h-44 rounded-2xl border p-4 text-left transition duration-200 ${
                 isSelected

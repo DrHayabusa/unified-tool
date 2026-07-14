@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { useState } from "react";
-import { ArrowLeft, BrainCircuit, CalendarRange, Download, FileSpreadsheet, FileText, RefreshCcw, Table2, Trash2, UploadCloud, X } from "lucide-react";
+import { ArrowLeft, BrainCircuit, CalendarRange, ChevronDown, Download, FileSpreadsheet, FileText, RefreshCcw, Table2, Trash2, UploadCloud, X } from "lucide-react";
 import { AGE_BUCKETS, extractMonthFromFilename, extractQuarterFromFilename } from "../lib/vulnerabilityEngine.js";
 import { downloadAnalysisWorkbook, downloadNormalizedCsv } from "../lib/reportExport.js";
 import { buildTemplateMarkdown, downloadRemediationPdf } from "../lib/pdfReport.js";
@@ -18,6 +18,7 @@ import { isSupportedUploadFile, mergeUploadFiles, removeUploadFile, uploadFileKe
 import { loadBundledSamples, loadUnifiedBundledSamples } from "../data/sampleFiles.js";
 import { AiReportBuilder } from "./AiReportBuilder.jsx";
 import { SourceCoveragePanel } from "./SourceCoveragePanel.jsx";
+import { UnifiedAnalysisDashboard } from "./UnifiedAnalysisDashboard.jsx";
 
 const PRIORITY_COLORS = { P1: "#dc2626", P2: "#ea580c", P3: "#ca8a04", P4: "#16a34a" };
 const SEVERITY_COLORS = { Critical: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#22c55e", Info: "#0ea5e9", Unknown: "#64748b" };
@@ -31,6 +32,7 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
 
   const dashboard = analysis.dashboard;
   const monthOptions = dashboard.uploadedPeriods ?? dashboard.uploadedMonths;
+  const targetPeriod = monthOptions.includes(selectedMonth) ? selectedMonth : monthOptions.at(-1);
   const open = dashboard.totalOpenVulnerabilities;
   const patched = dashboard.totalVulnerabilitiesPatchedLastPeriod ?? dashboard.totalVulnerabilitiesPatchedLastMonth;
   const discoveredTrend = dashboard.trendDiscoveredLast3Periods ?? dashboard.trendDiscoveredLast3Months;
@@ -68,7 +70,6 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
   };
 
   const downloadPdf = async () => {
-    const targetPeriod = selectedMonth || monthOptions.at(-1);
     setExportStatus({ state: "loading", message: `Building the ${targetPeriod} Remediation Guide PDF...` });
     try {
       const markdown = buildTemplateMarkdown({ analysis, targetMonth: targetPeriod });
@@ -88,6 +89,22 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
           <p className="mt-1 text-sm font-semibold text-slate-400">{analysis.sourceLabel} | {analysis.inputSummary?.fileCount ?? analysis.snapshots.length} validated files consolidated into {analysis.snapshots.length} {labels.lower} period{analysis.snapshots.length === 1 ? "" : "s"}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <label className="min-w-[190px] rounded-xl border border-red-300/20 bg-black/30 px-3 py-2">
+            <span className="mb-1 flex items-center gap-2 text-[0.62rem] font-black uppercase tracking-[0.15em] text-slate-500">
+              <CalendarRange className="h-3.5 w-3.5 text-red-300" />PDF Target {labels.singular}
+            </span>
+            <span className="relative block">
+              <select
+                aria-label={`PDF target ${labels.unitLower}`}
+                value={targetPeriod}
+                onChange={(event) => onMonthChange?.(event.target.value)}
+                className="w-full appearance-none bg-transparent pr-7 text-sm font-black text-white outline-none"
+              >
+                {monthOptions.map((period) => <option key={period} value={period}>{period}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </span>
+          </label>
           <button type="button" onClick={onBackToDashboard} className="ghost-button flex items-center gap-2 py-3">
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
@@ -106,7 +123,7 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
           </button>
           <button type="button" onClick={downloadPdf} disabled={exportStatus.state === "loading"} className="ghost-button flex items-center gap-2 py-3 disabled:cursor-wait disabled:opacity-50">
             <FileText className="h-4 w-4" />
-            Download PDF Report
+            Download {targetPeriod} PDF
           </button>
           <a href="#ai-report-builder" className="neon-button flex items-center gap-2 py-3">
             <BrainCircuit className="h-4 w-4" />
@@ -143,6 +160,10 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
         <Kpi label="Immediate Patch Needed" value={(dashboard.totalOpenByPatchPriority.P1 ?? 0) + (dashboard.totalOpenByPatchPriority.P2 ?? 0)} helper="P1 + P2" color="#ef4444" />
         <Kpi label={`Patched Last ${labels.singular}`} value={patched.patchedCount} helper={`${patched.previousPeriod} to ${patched.currentPeriod}`} color="#22c55e" />
         <Kpi label="Periods Compared" value={analysis.snapshots.length} helper={`${analysis.inputSummary?.fileCount ?? analysis.snapshots.length} source file(s)`} color="#38bdf8" />
+      </div>
+
+      <div className="mt-5">
+        <UnifiedAnalysisDashboard dashboard={dashboard} />
       </div>
 
       <div className="mt-5">
@@ -221,7 +242,7 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
           <h3 className="mt-1 text-xl font-black text-white">Excel, normalized CSV, and Remediation Guide PDF</h3>
           <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Excel, normalized CSV, and the standard PDF are generated locally. Only the selected {labels.unitLower} summary and prioritized normalized findings are sent when you request an AI-generated guide.</p>
         </article>
-        <AiReportBuilder analysis={analysis} selectedMonth={selectedMonth} onMonthChange={onMonthChange} monthOptions={monthOptions} workflow={cadence} />
+        <AiReportBuilder analysis={analysis} selectedMonth={targetPeriod} onMonthChange={onMonthChange} monthOptions={monthOptions} workflow={cadence} />
       </div>
     </section>
   );

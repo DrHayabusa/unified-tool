@@ -21,7 +21,7 @@ const FINDING_COLUMNS = [
   ["Vulnerability Name", "vulnerabilityName", 44],
   ["CVE", "cve", 20],
   ["Severity", "severity", 12],
-  ["Exploit Availability", "exploitAvailable", 19],
+  ["Exploit Available", "exploitAvailable", 17],
   ["Patch Priority", "patchPriority", 14],
   ["Asset Exposure (on 1000)", "assetExposure", 23],
   ["Vulnerability Finding", "vulnerabilityFinding", 44],
@@ -55,11 +55,110 @@ export async function buildAnalysisWorkbook(analysis) {
   workbook.modified = new Date();
   workbook.subject = `${analysis.sourceLabel} vulnerability report`;
 
+  if (analysis.dashboard?.unifiedInsights) await buildUnifiedDashboardSheet(workbook, analysis);
   if (isComparisonWorkflow(analysis)) await buildMonthlySheet(workbook, analysis);
   else await buildAdhocSheet(workbook, analysis);
   buildFindingsSheet(workbook, isComparisonWorkflow(analysis) ? analysis.currentFindings : analysis.findings);
   if ((analysis.sourceIds?.length ?? analysis.inputSummary?.sourceCount ?? 0) > 1) buildSourceAuditSheet(workbook, analysis);
   return workbook;
+}
+
+async function buildUnifiedDashboardSheet(workbook, analysis) {
+  const sheet = workbook.addWorksheet("Unified Dashboard", { views: [{ state: "frozen", ySplit: 3, showGridLines: false }] });
+  const dashboard = analysis.dashboard;
+  const insights = dashboard.unifiedInsights;
+  const historical = (dashboard.unifiedTrend?.length ?? 0) > 1;
+  const latestSummary = analysis.snapshots?.at(-1)?.inputSummary ?? analysis.inputSummary ?? {};
+  const periodLabel = dashboard.reportRange ?? analysis.reportMonth ?? analysis.reportPeriod ?? "Current report";
+  prepareSheet(sheet, 16);
+  sheet.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } };
+  sheet.getColumn(1).width = 28;
+  sheet.getColumn(9).width = 32;
+  sheet.getColumn(10).width = 20;
+  title(sheet, "Unified Multi-Tool Combined Analysis", `${periodLabel} | ${analysis.sourceIds?.length ?? latestSummary.sourceCount ?? 0} selected scanner sources`, 16);
+
+  kpi(sheet, "A4:D7", "CONSOLIDATED OPEN", insights.totalOpen, "Unique asset + vulnerability + service", COLORS.teal);
+  kpi(sheet, "E4:H7", "AFFECTED ASSETS", insights.distinctAssets, "Unique consolidated assets", "0284C7");
+  kpi(sheet, "I4:L7", "IMMEDIATE PATCH", insights.immediatePatch, "P1 + P2 findings", COLORS.critical);
+  kpi(sheet, "M4:P7", "EXPLOIT AVAILABLE", insights.exploitAvailable, "Positive exploit evidence", COLORS.high);
+  kpi(sheet, "A9:D12", "CROSS-TOOL CONFIRMED", insights.crossToolConfirmed, "Observed by two or more scanners", COLORS.low);
+  kpi(sheet, "E9:H12", "SINGLE-SOURCE ONLY", insights.singleSourceOnly, "One-source validation queue", "0284C7");
+  kpi(sheet, "I9:L12", "CONFIRMATION RATE", `${insights.confirmationRate}%`, "Cross-tool confirmed / open", "0891B2");
+  kpi(sheet, "M9:P12", "REPEATS REMOVED", latestSummary.duplicatesRemoved ?? 0, "Repeated source observations", COLORS.high);
+
+  let detailStartRow;
+  if (historical) {
+    section(sheet, "A14:P14", "Combined Portfolio Trend");
+    writeTable(
+      sheet,
+      15,
+      1,
+      ["Period", "Total Open", "New", "Patched", "P1", "P2", "P3", "P4", "Cross-tool Confirmed", "Single-source", "Exploit Available", "Repeats Removed"],
+      dashboard.unifiedTrend.map((row) => [row.period, row.totalOpen, row.newFindings, row.patchedFindings, row.P1, row.P2, row.P3, row.P4, row.crossToolConfirmed, row.singleSourceOnly, row.exploitable, row.repeatsRemoved]),
+    );
+    const chartRow = 17 + dashboard.unifiedTrend.length;
+    await addMultiLineChartImage(
+      workbook,
+      sheet,
+      [
+        { name: "Total Open", color: "#DC2626", points: dashboard.unifiedTrend.map((row) => ({ label: row.period, value: row.totalOpen })) },
+        { name: "New", color: "#0284C7", points: dashboard.unifiedTrend.map((row) => ({ label: row.period, value: row.newFindings })) },
+        { name: "Patched", color: "#16A34A", points: dashboard.unifiedTrend.map((row) => ({ label: row.period, value: row.patchedFindings })) },
+      ],
+      "Combined Portfolio Movement",
+      { col: 0.3, row: chartRow - 0.5, width: 610, height: 250 },
+    );
+    await addMultiLineChartImage(
+      workbook,
+      sheet,
+      Object.entries(COLORS).filter(([key]) => /^P[1-4]$/.test(key)).map(([priority, color]) => ({
+        name: priority,
+        color: `#${color}`,
+        points: dashboard.unifiedTrend.map((row) => ({ label: row.period, value: row[priority] })),
+      })),
+      "Patch Priority Movement",
+      { col: 8.1, row: chartRow - 0.5, width: 610, height: 250 },
+    );
+    detailStartRow = chartRow + 14;
+  } else {
+    section(sheet, "A14:H14", "Cross-Scanner Confirmation Depth");
+    writeTable(sheet, 15, 1, ["Confirmation Depth", "Open Findings"], insights.sourceAgreementDistribution.map((row) => [row.label, row.findingCount]));
+    section(sheet, "I14:P14", "Combined Patch Priority Exposure");
+    writeTable(sheet, 15, 9, ["Patch Priority", "Open Findings"], Object.entries(insights.patchPriorityCounts), true);
+    const chartRow = 21;
+    await addBarChartImage(workbook, sheet, insights.sourceAgreementDistribution.map((row) => ({ label: row.label, value: row.findingCount, color: "#16A34A" })), "Cross-Scanner Confirmation Depth", { col: 0.3, row: chartRow - 0.5, width: 610, height: 250 });
+    await addBarChartImage(workbook, sheet, Object.entries(insights.patchPriorityCounts).map(([label, value]) => ({ label, value, color: `#${COLORS[label]}` })), "Combined Priority Exposure", { col: 8.1, row: chartRow - 0.5, width: 610, height: 250 });
+    detailStartRow = chartRow + 14;
+  }
+
+  section(sheet, `A${detailStartRow}:G${detailStartRow}`, "Highest-Risk Assets");
+  writeTable(
+    sheet,
+    detailStartRow + 1,
+    1,
+    ["Asset", "Open", "P1 + P2", "Critical", "Exploit Available", "Sources", "Exposure"],
+    insights.topRiskAssets.map((row) => [row.asset, row.totalOpen, row.immediatePatch, row.critical, row.exploitAvailable, row.sourceCount, row.maxExposure]),
+  );
+  section(sheet, `I${detailStartRow}:P${detailStartRow}`, "Highest-Impact Vulnerabilities");
+  writeTable(
+    sheet,
+    detailStartRow + 1,
+    9,
+    ["Vulnerability", "CVE", "Open", "Assets", "P1 + P2", "Exploit Available", "Sources", "Exposure"],
+    insights.topVulnerabilities.map((row) => [row.vulnerability, row.cve || "N/A", row.totalOpen, row.affectedAssets, row.immediatePatch, row.exploitAvailable, row.sourceCount, row.maxExposure]),
+  );
+
+  const sourceStartRow = detailStartRow + Math.max(insights.topRiskAssets.length, insights.topVulnerabilities.length) + 3;
+  section(sheet, `A${sourceStartRow}:H${sourceStartRow}`, "Scanner Contribution");
+  writeTable(
+    sheet,
+    sourceStartRow + 1,
+    1,
+    ["Scanner", "Observed", "Assets", "P1 + P2", "Critical", "Exploit Available", "Cross-tool Confirmed", "Source-only"],
+    (dashboard.sourceBreakdown ?? []).map((source) => [source.sourceLabel, source.openFindings, source.affectedAssets, source.immediatePatch, source.criticalFindings, source.exploitAvailable, source.crossToolConfirmed, source.exclusiveFindings]),
+  );
+  section(sheet, `J${sourceStartRow}:P${sourceStartRow}`, "Cross-Scanner Overlap");
+  writeTable(sheet, sourceStartRow + 1, 10, ["Scanner Pair", "Confirmed Findings"], insights.sourcePairOverlap.map((row) => [row.sourcePair, row.findingCount]));
 }
 
 export function downloadNormalizedCsv(analysis) {
@@ -82,6 +181,9 @@ async function buildMonthlySheet(workbook, analysis) {
   const open = dashboard.totalOpenVulnerabilities;
   const patched = dashboard.totalVulnerabilitiesPatchedLastPeriod ?? dashboard.totalVulnerabilitiesPatchedLastMonth;
   prepareSheet(sheet, 12);
+  sheet.getColumn(7).width = 24;
+  sheet.getColumn(8).width = 16;
+  sheet.getColumn(9).width = 20;
   title(sheet, `${reportSourceLabel(analysis.sourceLabel)} ${singular}ly Vulnerability Report`, dashboard.reportRange, 12);
 
   kpi(sheet, "A4:C7", "TOTAL OPEN", open.totalOpen, "New + not closed", COLORS.teal);
@@ -226,6 +328,7 @@ function buildFindingsSheet(workbook, findings) {
 function buildSourceAuditSheet(workbook, analysis) {
   const sheet = workbook.addWorksheet("Source Audit", { views: [{ state: "frozen", ySplit: 4, showGridLines: false }] });
   prepareSheet(sheet, 9);
+  [24, 18, 18, 15, 15, 18, 22, 18, 14].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
   title(sheet, "Unified Multi-Tool Source Audit", analysis.dashboard?.reportRange ?? analysis.reportMonth ?? analysis.reportPeriod ?? "Current report", 9);
   const summary = analysis.inputSummary ?? {};
   const latestSummary = analysis.snapshots?.at(-1)?.inputSummary ?? summary;
@@ -239,9 +342,13 @@ function buildSourceAuditSheet(workbook, analysis) {
     source.sourceLabel,
     source.openFindings,
     source.affectedAssets,
+    source.immediatePatch,
+    source.criticalFindings,
     source.exploitAvailable,
+    source.crossToolConfirmed,
+    source.exclusiveFindings,
   ]);
-  writeTable(sheet, 10, 1, ["Scanner Source", "Observed Findings", "Affected Assets", "Exploit Available"], sourceRows, true);
+  writeTable(sheet, 10, 1, ["Scanner Source", "Observed Findings", "Affected Assets", "P1 + P2", "Critical", "Exploit Available", "Cross-tool Confirmed", "Source-only"], sourceRows, true);
 
   if ((analysis.dashboard?.sourceTrend?.length ?? 0) > 1) {
     section(sheet, "A18:I18", "Historical Consolidation Audit");
@@ -249,8 +356,8 @@ function buildSourceAuditSheet(workbook, analysis) {
       sheet,
       19,
       1,
-      ["Period", "Files", "Scanner Sources", "Repeats Removed"],
-      analysis.dashboard.sourceTrend.map((row) => [row.period, row.fileCount, row.sources.map((source) => source.sourceLabel).join(" + "), row.duplicatesRemoved]),
+      ["Period", "Open", "P1 + P2", "Exploit Available", "Cross-tool Confirmed", "Single-source", "Repeats Removed"],
+      analysis.dashboard.sourceTrend.map((row) => [row.period, row.totalOpen, row.immediatePatch, row.exploitable, row.crossToolConfirmed, row.singleSourceOnly, row.duplicatesRemoved]),
       true,
     );
   }
@@ -291,12 +398,13 @@ function kpi(sheet, range, label, value, helper, color) {
   valueCell.value = value;
   valueCell.fill = solid("F8FAFC");
   valueCell.font = { bold: true, size: 22, color: { argb: `FF${color}` } };
-  valueCell.alignment = { vertical: "middle" };
+  valueCell.alignment = { vertical: "middle", horizontal: "center" };
   sheet.mergeCells(endCell.row, startCell.col, endCell.row, endCell.col);
   const helperCell = sheet.getCell(endCell.row, startCell.col);
   helperCell.value = helper;
   helperCell.fill = solid("F8FAFC");
   helperCell.font = { size: 9, color: { argb: `FF${COLORS.slate}` } };
+  helperCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   for (let row = startCell.row; row <= endCell.row; row += 1) {
     for (let col = startCell.col; col <= endCell.col; col += 1) {
       sheet.getCell(row, col).border = { bottom: { style: "thin", color: { argb: `FF${color}` } } };
@@ -317,9 +425,10 @@ function writeTable(sheet, startRow, startColumn, headers, rows, colorPriority =
     const cell = sheet.getCell(startRow, startColumn + offset);
     cell.value = header;
     cell.fill = solid(COLORS.navy);
-    cell.font = { bold: true, color: { argb: `FF${COLORS.white}` } };
-    cell.alignment = { vertical: "middle" };
+    cell.font = { bold: true, size: 9, color: { argb: `FF${COLORS.white}` } };
+    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   });
+  sheet.getRow(startRow).height = 30;
   rows.forEach((values, rowOffset) => {
     values.forEach((value, columnOffset) => {
       const cell = sheet.getCell(startRow + rowOffset + 1, startColumn + columnOffset);
@@ -399,6 +508,7 @@ function findingCellValue(finding, key) {
 }
 
 async function addLineChartImage(workbook, sheet, points, chartTitle, color, placement) {
+  if (!canRenderChartImages()) return;
   const image = await renderLineChartPng(points, chartTitle, color);
   const imageId = workbook.addImage({ base64: image, extension: "png" });
   sheet.addImage(imageId, {
@@ -406,6 +516,24 @@ async function addLineChartImage(workbook, sheet, points, chartTitle, color, pla
     ext: { width: placement.width, height: placement.height },
     editAs: "oneCell",
   });
+}
+
+async function addMultiLineChartImage(workbook, sheet, series, chartTitle, placement) {
+  if (!canRenderChartImages() || !series.length) return;
+  const image = await renderMultiLineChartPng(series, chartTitle);
+  const imageId = workbook.addImage({ base64: image, extension: "png" });
+  sheet.addImage(imageId, { tl: { col: placement.col, row: placement.row }, ext: { width: placement.width, height: placement.height }, editAs: "oneCell" });
+}
+
+async function addBarChartImage(workbook, sheet, points, chartTitle, placement) {
+  if (!canRenderChartImages() || !points.length) return;
+  const image = await renderBarChartPng(points, chartTitle);
+  const imageId = workbook.addImage({ base64: image, extension: "png" });
+  sheet.addImage(imageId, { tl: { col: placement.col, row: placement.row }, ext: { width: placement.width, height: placement.height }, editAs: "oneCell" });
+}
+
+function canRenderChartImages() {
+  return typeof document !== "undefined" && typeof Image !== "undefined" && typeof URL?.createObjectURL === "function";
 }
 
 async function renderLineChartPng(points, chartTitle, color) {
@@ -428,6 +556,64 @@ async function renderLineChartPng(points, chartTitle, color) {
   const coordinates = points.map((point, index) => `${xFor(index)},${yFor(values[index])}`).join(" ");
   const dots = points.map((point, index) => `<circle cx="${xFor(index)}" cy="${yFor(values[index])}" r="7" fill="#FFFFFF" stroke="${color}" stroke-width="5"/><text x="${xFor(index)}" y="${yFor(values[index]) - 15}" text-anchor="middle" font-size="17" font-weight="700" fill="#334155">${values[index]}</text>`).join("");
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" rx="18" fill="#FFFFFF"/><text x="${width / 2}" y="38" text-anchor="middle" font-family="Aptos,Segoe UI,sans-serif" font-size="26" font-weight="700" fill="#172033">${escapeXml(chartTitle)}</text><g font-family="Aptos,Segoe UI,sans-serif">${grid}${labels}<polyline points="${coordinates}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>${dots}</g></svg>`;
+  return renderSvgPng(svg, width, height, chartTitle);
+}
+
+async function renderMultiLineChartPng(series, chartTitle) {
+  const width = 900;
+  const height = 360;
+  const plot = { left: 72, top: 78, right: 48, bottom: 64 };
+  const chartWidth = width - plot.left - plot.right;
+  const chartHeight = height - plot.top - plot.bottom;
+  const labels = series[0].points.map((point) => point.label);
+  const values = series.flatMap((item) => item.points.map((point) => Math.max(0, Number(point.value) || 0)));
+  const axisMax = Math.max(5, Math.ceil(Math.max(1, ...values) / 5) * 5);
+  const xFor = (index) => plot.left + (labels.length <= 1 ? chartWidth / 2 : (index / (labels.length - 1)) * chartWidth);
+  const yFor = (value) => plot.top + chartHeight - (value / axisMax) * chartHeight;
+  const grid = chartGridSvg({ axisMax, yFor, left: plot.left, right: width - plot.right });
+  const xLabels = labels.map((label, index) => `<text x="${xFor(index)}" y="${height - 22}" text-anchor="middle" font-size="15" font-weight="600" fill="#475569">${escapeXml(label)}</text>`).join("");
+  const lines = series.map((item) => {
+    const points = item.points.map((point, index) => `${xFor(index)},${yFor(Math.max(0, Number(point.value) || 0))}`).join(" ");
+    const dots = item.points.map((point, index) => `<circle cx="${xFor(index)}" cy="${yFor(Math.max(0, Number(point.value) || 0))}" r="5" fill="#FFFFFF" stroke="${item.color}" stroke-width="4"/>`).join("");
+    return `<polyline points="${points}" fill="none" stroke="${item.color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>${dots}`;
+  }).join("");
+  const legend = series.map((item, index) => `<rect x="${plot.left + index * 150}" y="48" width="18" height="5" rx="2" fill="${item.color}"/><text x="${plot.left + 26 + index * 150}" y="55" font-size="14" font-weight="700" fill="#475569">${escapeXml(item.name)}</text>`).join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" rx="18" fill="#FFFFFF"/><text x="${width / 2}" y="30" text-anchor="middle" font-family="Aptos,Segoe UI,sans-serif" font-size="24" font-weight="700" fill="#172033">${escapeXml(chartTitle)}</text><g font-family="Aptos,Segoe UI,sans-serif">${legend}${grid}${xLabels}${lines}</g></svg>`;
+  return renderSvgPng(svg, width, height, chartTitle);
+}
+
+async function renderBarChartPng(points, chartTitle) {
+  const width = 900;
+  const height = 360;
+  const plot = { left: 72, top: 70, right: 48, bottom: 64 };
+  const chartWidth = width - plot.left - plot.right;
+  const chartHeight = height - plot.top - plot.bottom;
+  const values = points.map((point) => Math.max(0, Number(point.value) || 0));
+  const axisMax = Math.max(5, Math.ceil(Math.max(1, ...values) / 5) * 5);
+  const yFor = (value) => plot.top + chartHeight - (value / axisMax) * chartHeight;
+  const slot = chartWidth / Math.max(points.length, 1);
+  const barWidth = Math.min(90, slot * 0.56);
+  const grid = chartGridSvg({ axisMax, yFor, left: plot.left, right: width - plot.right });
+  const bars = points.map((point, index) => {
+    const value = values[index];
+    const x = plot.left + slot * index + (slot - barWidth) / 2;
+    const y = yFor(value);
+    const barHeight = plot.top + chartHeight - y;
+    return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="8" fill="${point.color}"/><text x="${x + barWidth / 2}" y="${Math.max(plot.top + 15, y - 10)}" text-anchor="middle" font-size="17" font-weight="700" fill="#334155">${value}</text><text x="${x + barWidth / 2}" y="${height - 22}" text-anchor="middle" font-size="15" font-weight="600" fill="#475569">${escapeXml(point.label)}</text>`;
+  }).join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" rx="18" fill="#FFFFFF"/><text x="${width / 2}" y="34" text-anchor="middle" font-family="Aptos,Segoe UI,sans-serif" font-size="24" font-weight="700" fill="#172033">${escapeXml(chartTitle)}</text><g font-family="Aptos,Segoe UI,sans-serif">${grid}${bars}</g></svg>`;
+  return renderSvgPng(svg, width, height, chartTitle);
+}
+
+function chartGridSvg({ axisMax, yFor, left, right }) {
+  return Array.from({ length: 6 }, (_, index) => {
+    const value = Math.round((axisMax * index) / 5);
+    const y = yFor(value);
+    return `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="#D7DEE8" stroke-width="1" stroke-dasharray="5 5"/><text x="${left - 14}" y="${y + 5}" text-anchor="end" font-size="15" fill="#64748B">${value}</text>`;
+  }).join("");
+}
+
+async function renderSvgPng(svg, width, height, chartTitle) {
   const svgUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
   const image = new Image();
   try {
