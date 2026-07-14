@@ -27,9 +27,9 @@ test("every scanner produces a populated source-neutral Adhoc workbook", async (
 
     assert.ok(dashboard, `${sourceId}: Adhoc Report sheet`);
     assert.ok(data, `${sourceId}: Report Data sheet`);
-    assert.ok(workbook.getWorksheet("Decision Intelligence"), `${sourceId}: Decision Intelligence sheet`);
-    assert.ok(workbook.getWorksheet("Remediation Campaigns"), `${sourceId}: Remediation Campaigns sheet`);
-    assert.equal(workbook.getWorksheet("Remediation Verification"), undefined, `${sourceId}: no comparison-only verification sheet`);
+    assert.equal(workbook.getWorksheet("Decision Intelligence"), undefined, `${sourceId}: browser-only decision intelligence`);
+    assert.equal(workbook.getWorksheet("Remediation Campaigns"), undefined, `${sourceId}: browser-only remediation campaigns`);
+    assert.equal(workbook.getWorksheet("Remediation Verification"), undefined, `${sourceId}: browser-only remediation verification`);
     assert.equal(data.actualRowCount, analysis.findings.length + 1, `${sourceId}: complete normalized rows`);
     assert.match(String(dashboard.getCell("A1").value), /Adhoc Vulnerability Report$/, sourceId);
     assert.doesNotMatch(String(dashboard.getCell("A1").value), /Adhoc Adhoc/, sourceId);
@@ -63,6 +63,22 @@ test("Qualys Adhoc workbook explains dates absent from the source export", async
     assert.equal(data.getCell(row, 15).value, "Not provided by source export");
     assert.equal(data.getCell(row, 16).value, "Not provided by source export");
   }
+});
+
+test("CrowdStrike monthly workbook keeps threat-intelligence additions browser-only", async () => {
+  const files = await Promise.all(["april", "may", "june", "july"].map((month) => fakeFile(
+    path.join(root, "samples", "crowdstrike_100_row", `crowdstrike_vulnerabilities_${month}_2026_100plus.csv`),
+  )));
+  const analysis = await analyzeMonthlyFiles(files, "crowdstrike");
+  const workbook = await buildAnalysisWorkbook(analysis);
+  const report = workbook.getWorksheet("Monthly Report");
+  const reportText = report.getSheetValues().flat(3).filter(Boolean).join(" | ");
+
+  assert.match(reportText, /Vulnerability Trend - Last 3 Months/);
+  assert.match(reportText, /Total Open by Patch Priority/);
+  assert.match(reportText, /Total Open by Age and Patch Priority/);
+  assert.match(reportText, /Vulnerabilities Patched in Last Month/);
+  assert.doesNotMatch(reportText, /CISA KEV|SSVC|EPSS|Threat Review|CrowdStrike Exposure Signals/);
 });
 
 test("Unified workbook preserves scanner provenance and consolidation audit", async () => {
@@ -111,9 +127,9 @@ test("Unified monthly Excel and PDF contain combined analysis plus remediations"
   assert.equal(unified.getCell("A15").value, "Period");
   assert.equal(unified.getCell("A16").value, "April 2026");
   assert.equal(unified.getCell("B19").value, 40);
-  assert.ok(workbook.getWorksheet("Decision Intelligence"));
-  assert.ok(workbook.getWorksheet("Remediation Campaigns"));
-  assert.ok(workbook.getWorksheet("Remediation Verification"));
+  assert.equal(workbook.getWorksheet("Decision Intelligence"), undefined);
+  assert.equal(workbook.getWorksheet("Remediation Campaigns"), undefined);
+  assert.equal(workbook.getWorksheet("Remediation Verification"), undefined);
   assert.equal(
     analysis.dashboard.customerValueInsights.remediationCampaigns.campaigns.reduce((sum, campaign) => sum + campaign.findingCount, 0),
     analysis.dashboard.totalOpenVulnerabilities.totalOpen,
