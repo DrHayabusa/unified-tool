@@ -1,0 +1,365 @@
+Remediation Guide
+Vulnerability remediation plan
+Report Type Remediation
+Tool Source Unified Multi-Tool
+Reporting Month July 2026
+Contents
+1. Portfolio Risk Overview
+2. Trend Analysis
+3. Remediation Actions
+4. Validation Requirements
+5. Reference Appendix
+Remediation Guide Page 1 of 12
+1. Portfolio Risk Overview
+Tool Source: Unified Multi-Tool
+Reporting Month: July 2026
+Total Open Findings: 160
+Measure Value
+Consolidated Open 160
+Affected Assets 85
+Immediate Patch (P1 + P2) 113
+Exploit Available 77
+Cross-tool Confirmed 40
+Single-source Only 120
+Confirmation Rate 25%
+Patch Priority Posture
+Priority Open Findings
+P1 44
+P2 69
+P3 23
+P4 24
+Scanner Contribution
+Scanner Observed P1 + P2 Exploit Available Cross-tool Confirmed Source-only
+Tenable.sc 40 30 30 40 0
+Tenable.io 40 30 30 40 0
+Qualys 40 30 30 40 0
+CrowdStrike 120 83 47 0 120
+Highest-Risk Assets
+Asset Open P1 + P2 Critical Exploit Available Sources Exposure
+cs-asset-001.corp.example 3 3 1 3 1 1000
+cs-asset-043.corp.example 3 3 1 3 1 940
+cs-asset-031.corp.example 3 3 1 3 1 925
+cs-asset-022.corp.example 3 3 1 3 1 895
+Remediation Guide Page 2 of 12
+cs-asset-034.corp.example 3 3 1 3 1 895
+cs-asset-028.corp.example 3 3 1 3 1 825
+cs-asset-040.corp.example 3 3 1 3 1 825
+cs-asset-025.corp.example 3 3 0 3 1 808
+2. Trend Analysis
+Period Total Open New Patched P1 P2 P3 P4 Confirmed Single-sour
+ce
+April 2026 150 0 0 42 62 23 23 40 110
+May 2026 160 30 20 44 66 24 26 40 120
+June 2026 165 25 20 44 73 23 25 40 125
+July 2026 160 20 25 44 69 23 24 40 120
+3. Remediation Actions
+1. Google Chrome use-after-free vulnerability
+- Affected Findings: 15 across 15 assets
+- Asset Examples: cs-asset-001.corp.example, cs-asset-003.corp.example, cs-asset-006.corp.example,
+cs-asset-011.corp.example, cs-asset-014.corp.example
+- CVE: CVE-2024-4671
+- Severity: Critical
+- Patch Priority: P1
+- Advisory: https://chromereleases.googleblog.com/
+- Advisory: https://nvd.nist.gov/vuln/detail/CVE-2024-4671
+Remediation steps:
+1. Update Google Chrome to the latest enterprise stable release and relaunch the browser. Patch Google Chrome during
+the approved change window and capture validation evidence. Apply the minimum vendor-supported fixed release. Test
+in pre-production, deploy, restart if required, and run a verification scan.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+winget upgrade --id Google.Chrome --exact --silent --accept-source-agreements --accept-package-agreements
+(Get-Item 'C:\Program Files\Google\Chrome\Application\chrome.exe').VersionInfo.FileVersion
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+Remediation Guide Page 3 of 12
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+2. SMB Signing Not Required
+- Affected Findings: 4 across 4 assets
+- Asset Examples: asset-007.corp.local, asset-017.corp.local, asset-027.corp.local, asset-037.corp.local
+- CVE: N/A
+- Severity: Critical
+- Patch Priority: P1
+- Advisory: https://learn.microsoft.com/windows/security/threat-protection/security-policy-settings/microsoft-network-server
+-digitally-sign-communications-always
+Remediation steps:
+1. Require SMB signing through Group Policy and validate domain controller and member server policy refresh.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+# Replace placeholders with the approved product-specific command
+<apply-approved-security-update>
+<validate-service-health>
+<run-follow-up-scan>
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+3. Apache Tomcat AJP Request Injection
+- Affected Findings: 19 across 19 assets
+- Asset Examples: asset-001.corp.local, asset-011.corp.local, asset-021.corp.local, asset-031.corp.local,
+cs-asset-002.corp.example
+- CVE: CVE-2020-1938
+- Severity: Critical
+- Patch Priority: P1
+- Advisory: https://tomcat.apache.org/security-9.html
+- Advisory: https://nvd.nist.gov/vuln/detail/CVE-2020-1938
+Remediation steps:
+1. Apply the vendor security update, restart the affected service if required, and validate with a follow-up scan.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+Remediation Guide Page 4 of 12
+/opt/tomcat/bin/version.sh
+grep -n 'Connector.*AJP' /opt/tomcat/conf/server.xml
+# Upgrade Tomcat and disable unused AJP or require a secret
+sudo systemctl restart tomcat
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+4. Remote Desktop Weak Encryption Enabled
+- Affected Findings: 4 across 4 assets
+- Asset Examples: asset-005.corp.local, asset-015.corp.local, asset-025.corp.local, asset-035.corp.local
+- CVE: N/A
+- Severity: Critical
+- Patch Priority: P1
+- Advisory: https://www.tenable.com/plugins
+- Advisory: https://www.qualys.com/research/security-alerts/
+Remediation steps:
+1. Apply the vendor security update, restart the affected service if required, and validate with a follow-up scan.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 10
+# Install the approved Microsoft security update and reboot if required
+Get-Service TermServLicensing
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+5. Linux Kernel Security Update Available
+- Affected Findings: 19 across 19 assets
+- Asset Examples: asset-009.corp.local, asset-019.corp.local, asset-029.corp.local, asset-039.corp.local,
+cs-asset-003.corp.example
+- CVE: CVE-2024-1086
+- Severity: Critical
+- Patch Priority: P1
+Remediation Guide Page 5 of 12
+- Advisory: https://www.tenable.com/plugins
+- Advisory: https://www.qualys.com/research/security-alerts/
+- Advisory: https://nvd.nist.gov/vuln/detail/CVE-2024-1086
+Remediation steps:
+1. Apply the vendor security update, restart the affected service if required, and validate with a follow-up scan.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+uname -r
+sudo apt-get update
+sudo apt-get install --only-upgrade linux-image-generic
+sudo reboot
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+6. Microsoft SQL Server Unsupported Version
+- Affected Findings: 4 across 4 assets
+- Asset Examples: asset-003.corp.local, asset-013.corp.local, asset-023.corp.local, asset-033.corp.local
+- CVE: N/A
+- Severity: Critical
+- Patch Priority: P1
+- Advisory: https://learn.microsoft.com/sql/sql-server/end-of-support
+Remediation steps:
+1. Upgrade the affected software to a vendor-supported release and validate with a follow-up scan.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+# Replace placeholders with the approved product-specific command
+<apply-approved-security-update>
+<validate-service-health>
+<run-follow-up-scan>
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+Remediation Guide Page 6 of 12
+7. Windows Remote Desktop Licensing Service remote code execution
+- Affected Findings: 15 across 15 assets
+- Asset Examples: cs-asset-002.corp.example, cs-asset-005.corp.example, cs-asset-007.corp.example,
+cs-asset-010.corp.example, cs-asset-015.corp.example
+- CVE: CVE-2024-38077
+- Severity: Critical
+- Patch Priority: P1
+- Advisory: https://msrc.microsoft.com/update-guide/vulnerability/CVE-2024-38077
+- Advisory: https://nvd.nist.gov/vuln/detail/CVE-2024-38077
+Remediation steps:
+1. Install the current Microsoft cumulative security update and restart the affected host. Patch Microsoft Windows Server
+during the approved change window and capture validation evidence. Apply the minimum vendor-supported fixed release.
+Test in pre-production, deploy, restart if required, and run a verification scan.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 10
+# Install the approved Microsoft security update and reboot if required
+Get-Service TermServLicensing
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+8. Cisco IOS XE web UI privilege escalation
+- Affected Findings: 15 across 15 assets
+- Asset Examples: cs-asset-002.corp.example, cs-asset-004.corp.example, cs-asset-007.corp.example,
+cs-asset-012.corp.example, cs-asset-015.corp.example
+- CVE: CVE-2023-20198
+- Severity: High
+- Patch Priority: P1
+- Advisory:
+https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+- Advisory: https://nvd.nist.gov/vuln/detail/CVE-2023-20198
+Remediation steps:
+1. Install the fixed Cisco IOS XE release and disable the HTTP server when it is not required. Patch Cisco IOS XE during
+the approved change window and capture validation evidence. Apply the minimum vendor-supported fixed release. Test
+in pre-production, deploy, restart if required, and run a verification scan.
+Remediation Guide Page 7 of 12
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+show version
+show running-config | include ^ip http
+# Stage and activate the vendor-fixed IOS XE image under the approved network change
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+9. Oracle Java Unsupported Version
+- Affected Findings: 4 across 4 assets
+- Asset Examples: asset-008.corp.local, asset-018.corp.local, asset-028.corp.local, asset-038.corp.local
+- CVE: CVE-2024-20919
+- Severity: High
+- Patch Priority: P1
+- Advisory: https://www.tenable.com/plugins
+- Advisory: https://www.qualys.com/research/security-alerts/
+Remediation steps:
+1. Upgrade the affected software to a vendor-supported release and validate with a follow-up scan.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+# Replace placeholders with the approved product-specific command
+<apply-approved-security-update>
+<validate-service-health>
+<run-follow-up-scan>
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+10. Apache Log4j Remote Code Execution
+- Affected Findings: 19 across 19 assets
+- Asset Examples: asset-002.corp.local, asset-012.corp.local, asset-022.corp.local, asset-032.corp.local,
+cs-asset-003.corp.example
+Remediation Guide Page 8 of 12
+- CVE: CVE-2021-44228
+- Severity: High
+- Patch Priority: P1
+- Advisory: https://logging.apache.org/log4j/2.x/security.html
+- Advisory: https://nvd.nist.gov/vuln/detail/CVE-2021-44228
+Remediation steps:
+1. Apply the vendor security update, restart the affected service if required, and validate with a follow-up scan.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+find /opt -name 'log4j-core-*.jar' -print
+# Replace the vulnerable JAR through the approved application release
+sudo systemctl restart <affected-service>
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+11. Nginx Security Update Available
+- Affected Findings: 4 across 4 assets
+- Asset Examples: asset-006.corp.local, asset-016.corp.local, asset-026.corp.local, asset-036.corp.local
+- CVE: CVE-2025-2345
+- Severity: High
+- Patch Priority: P1
+- Advisory: https://nginx.org/en/security_advisories.html
+Remediation steps:
+1. Apply the vendor security update, restart the affected service if required, and validate with a follow-up scan.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+# Replace placeholders with the approved product-specific command
+<apply-approved-security-update>
+<validate-service-health>
+<run-follow-up-scan>
+Rollback and validation:
+Remediation Guide Page 9 of 12
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+12. TLS 1.0 Protocol Detection
+- Affected Findings: 4 across 4 assets
+- Asset Examples: asset-010.corp.local, asset-020.corp.local, asset-030.corp.local, asset-040.corp.local
+- CVE: N/A
+- Severity: High
+- Patch Priority: P1
+- Advisory: https://www.tenable.com/plugins
+- Advisory: https://www.qualys.com/research/security-alerts/
+Remediation steps:
+1. Disable TLS 1.0 and TLS 1.1, enable TLS 1.2 or later, then restart the affected service.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+# Replace placeholders with the approved product-specific command
+<apply-approved-security-update>
+<validate-service-health>
+<run-follow-up-scan>
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+13. OpenSSL Security Update Available
+- Affected Findings: 19 across 19 assets
+- Asset Examples: asset-004.corp.local, asset-014.corp.local, asset-024.corp.local, asset-034.corp.local,
+cs-asset-001.corp.example
+- CVE: CVE-2023-0286
+- Severity: High
+- Patch Priority: P1
+- Advisory: https://www.openssl.org/news/vulnerabilities.html
+- Advisory: https://www.openssl.org/news/secadv/20230207.txt
+- Advisory: https://nvd.nist.gov/vuln/detail/CVE-2023-0286
+Remediation steps:
+1. Apply the vendor security update, restart the affected service if required, and validate with a follow-up scan.
+Remediation Guide Page 10 of 12
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+openssl version -a
+sudo apt-get update
+sudo apt-get install --only-upgrade openssl
+sudo systemctl restart <affected-service>
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+14. Microsoft Exchange privilege escalation
+- Affected Findings: 15 across 15 assets
+- Asset Examples: cs-asset-001.corp.example, cs-asset-004.corp.example, cs-asset-006.corp.example,
+cs-asset-009.corp.example, cs-asset-014.corp.example
+- CVE: CVE-2024-21410
+- Severity: Low
+- Patch Priority: P2
+- Advisory: https://msrc.microsoft.com/update-guide/vulnerability/CVE-2024-21410
+- Advisory: https://nvd.nist.gov/vuln/detail/CVE-2024-21410
+Remediation steps:
+1. Install the supported Exchange Server security update and verify Extended Protection configuration. Patch Microsoft
+Exchange Server during the approved change window and capture validation evidence. Apply the minimum
+vendor-supported fixed release. Test in pre-production, deploy, restart if required, and run a verification scan.
+2. Validate application and service health after the change.
+3. Run a follow-up vulnerability scan and retain evidence.
+Get-ExchangeServer | Format-List Name,Edition,AdminDisplayVersion
+# Install the approved Exchange Security Update and reboot if required
+Rollback and validation:
+- Use the approved change rollback procedure if service-health checks fail.
+- Confirm the installed version or configuration, validate service health, and verify closure in a follow-up scan.
+4. Validation Requirements
+Confirm service health, review change evidence, and verify closure in a follow-up vulnerability scan.
+Remediation Guide Page 11 of 12
+5. Reference Appendix
+- https://chromereleases.googleblog.com/
+- https://nvd.nist.gov/vuln/detail/CVE-2024-4671
+- https://learn.microsoft.com/windows/security/threat-protection/security-policy-settings/microsoft-network-server-digitally-
+sign-communications-always
+- https://tomcat.apache.org/security-9.html
+- https://nvd.nist.gov/vuln/detail/CVE-2020-1938
+- https://www.tenable.com/plugins
+- https://www.qualys.com/research/security-alerts/
+- https://nvd.nist.gov/vuln/detail/CVE-2024-1086
+- https://learn.microsoft.com/sql/sql-server/end-of-support
+- https://msrc.microsoft.com/update-guide/vulnerability/CVE-2024-38077
+- https://nvd.nist.gov/vuln/detail/CVE-2024-38077
+- https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+- https://nvd.nist.gov/vuln/detail/CVE-2023-20198
+- https://logging.apache.org/log4j/2.x/security.html
+- https://nvd.nist.gov/vuln/detail/CVE-2021-44228
+- https://nginx.org/en/security_advisories.html
+- https://www.openssl.org/news/vulnerabilities.html
+- https://www.openssl.org/news/secadv/20230207.txt
+- https://nvd.nist.gov/vuln/detail/CVE-2023-0286
+- https://msrc.microsoft.com/update-guide/vulnerability/CVE-2024-21410
+- https://nvd.nist.gov/vuln/detail/CVE-2024-21410
+Remediation Guide Page 12 of 12

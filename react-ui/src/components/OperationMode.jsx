@@ -31,7 +31,7 @@ const modes = [
   },
 ];
 
-export function OperationMode({ mode, onModeChange }) {
+export function OperationMode({ mode, onModeChange, disabled = false, disabledMessage = "" }) {
   return (
     <section className="cyber-panel rounded-[1.75rem] p-5">
       <div className="mb-5 flex items-center justify-between gap-4">
@@ -42,6 +42,12 @@ export function OperationMode({ mode, onModeChange }) {
         <Activity className="h-6 w-6 text-red-300" />
       </div>
 
+      {disabled && (
+        <div className="mb-5 rounded-2xl border border-amber-300/25 bg-amber-400/[0.06] px-4 py-3 text-sm font-bold text-amber-100">
+          {disabledMessage}
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
         {modes.map((item) => {
           const Icon = item.icon;
@@ -51,9 +57,12 @@ export function OperationMode({ mode, onModeChange }) {
             <button
               key={item.id}
               type="button"
+              disabled={disabled}
               onClick={() => onModeChange(item.id)}
               className={`group relative overflow-hidden rounded-2xl border p-5 text-left transition duration-200 ${
-                active
+                disabled
+                  ? "cursor-not-allowed border-white/5 bg-slate-950/35 opacity-45"
+                  : active
                   ? "border-red-400/55 bg-red-500/[0.07]"
                   : "border-white/10 bg-slate-900/55 hover:border-red-300/30 hover:bg-slate-900/80"
               }`}

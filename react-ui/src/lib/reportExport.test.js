@@ -5,7 +5,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { buildAnalysisWorkbook } from "./reportExport.js";
-import { analyzeAdhocFiles } from "./vulnerabilityEngine.js";
+import { buildRemediationPrompt, buildTemplateMarkdown, createRemediationPdfDocument } from "./pdfReport.js";
+import { analyzeAdhocFiles, analyzeMonthlyFiles } from "./vulnerabilityEngine.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -67,8 +68,18 @@ test("Unified workbook preserves scanner provenance and consolidation audit", as
   const workbook = await buildAnalysisWorkbook(analysis);
   const data = workbook.getWorksheet("Report Data");
   const audit = workbook.getWorksheet("Source Audit");
+  const unified = workbook.getWorksheet("Unified Dashboard");
 
+  assert.equal(workbook.worksheets[0].name, "Unified Dashboard");
+  assert.ok(unified);
   assert.ok(audit);
+  assert.equal(unified.getCell("A1").value, "Unified Multi-Tool Combined Analysis");
+  assert.equal(unified.getCell("A5").value, 160);
+  assert.equal(unified.getCell("I5").value, 113);
+  assert.equal(unified.getCell("A10").value, 40);
+  assert.equal(unified.getCell("E10").value, 120);
+  assert.equal(unified.getCell("I10").value, "25%");
+  assert.equal(data.getCell("F1").value, "Exploit Available");
   assert.equal(data.getCell("Q1").value, "Source Tools");
   assert.equal(data.getCell("R1").value, "Record Count");
   assert.ok(data.getColumn(17).values.slice(2).every((value) => String(value).length > 0));
@@ -77,6 +88,41 @@ test("Unified workbook preserves scanner provenance and consolidation audit", as
   assert.equal(audit.getCell("C5").value, 4);
   assert.equal(audit.getCell("E5").value, analysis.dashboard.totalVulnerabilities);
   assert.equal(audit.getCell("H5").value, analysis.inputSummary.duplicatesRemoved);
+});
+
+test("Unified monthly Excel and PDF contain combined analysis plus remediations", async () => {
+  const files = await Promise.all(["april", "may", "june", "july"].flatMap((month) => [
+    path.join(root, "samples", "tenable_100_row", `tenable_sc_${month}_2026_100plus.csv`),
+    path.join(root, "samples", "tenable_100_row", `tenable_io_${month}_2026_100plus.csv`),
+  ]).map(fakeFile));
+  const analysis = await analyzeMonthlyFiles(files, { mode: "multi", sourceIds: ["tenable-sc", "tenable-io"] });
+  const workbook = await buildAnalysisWorkbook(analysis);
+  const unified = workbook.getWorksheet("Unified Dashboard");
+  const dashboardText = unified.getSheetValues().flat(3).filter(Boolean).join(" | ");
+
+  assert.equal(workbook.worksheets[0].name, "Unified Dashboard");
+  assert.match(dashboardText, /Combined Portfolio Trend/);
+  assert.match(dashboardText, /Highest-Risk Assets/);
+  assert.match(dashboardText, /Highest-Impact Vulnerabilities/);
+  assert.match(dashboardText, /Scanner Contribution/);
+  assert.equal(unified.getCell("A15").value, "Period");
+  assert.equal(unified.getCell("A16").value, "April 2026");
+  assert.equal(unified.getCell("B19").value, 40);
+
+  const markdown = buildTemplateMarkdown({ analysis, targetMonth: "July 2026" });
+  const prompt = buildRemediationPrompt({ analysis, targetMonth: "July 2026" });
+  assert.match(markdown, /## 1\. Portfolio Risk Overview/);
+  assert.match(markdown, /## 2\. Trend Analysis/);
+  assert.match(markdown, /Cross-tool Confirmed/);
+  assert.match(markdown, /Scanner Contribution/);
+  assert.match(markdown, /## 3\. Remediation Actions/);
+  assert.match(prompt, /Combined portfolio analytics for the selected reporting period/);
+  assert.match(prompt, /"crossToolConfirmed": 40/);
+
+  const pdf = await createRemediationPdfDocument({ markdown, sourceLabel: analysis.sourceLabel, targetMonth: "July 2026", workflow: "monthly" });
+  const bytes = Buffer.from(pdf.output("arraybuffer"));
+  assert.equal(bytes.subarray(0, 4).toString(), "%PDF");
+  assert.ok(pdf.getNumberOfPages() >= 3);
 });
 
 async function fakeFile(filePath) {

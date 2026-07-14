@@ -25,8 +25,8 @@ export function SourceCoveragePanel({ dashboard, inputSummary }) {
     <section className="cyber-panel rounded-[1.75rem] p-5">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="mini-label">Unified Analysis Audit</p>
-          <h2 className="mt-1 text-xl font-black text-white">Cross-scanner source coverage</h2>
+          <p className="mini-label">Coverage &amp; Reconciliation Audit</p>
+          <h2 className="mt-1 text-xl font-black text-white">Scanner contribution and source provenance</h2>
           <p className="mt-2 max-w-4xl text-sm font-semibold leading-6 text-slate-400">
             Total Open is deduplicated by asset, vulnerability, and service. Source cards show where each consolidated finding was observed, so their counts can overlap across scanners.
           </p>
@@ -48,27 +48,34 @@ export function SourceCoveragePanel({ dashboard, inputSummary }) {
         {sources.map((source) => (
           <article key={source.sourceId} className={`rounded-2xl border p-4 ${SOURCE_TONES[source.sourceId] ?? "border-white/10 bg-white/[0.03] text-slate-200"}`}>
             <p className="text-xs font-black uppercase tracking-[0.13em]">{source.sourceLabel}</p>
-            <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-              <SourceMeasure label="Findings" value={source.openFindings} />
+            <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-4 text-center">
+              <SourceMeasure label="Observed" value={source.openFindings} />
               <SourceMeasure label="Assets" value={source.affectedAssets} />
+              <SourceMeasure label="P1 + P2" value={source.immediatePatch} />
+              <SourceMeasure label="Critical" value={source.criticalFindings} />
               <SourceMeasure label="Exploit" value={source.exploitAvailable} />
+              <SourceMeasure label="Confirmed" value={source.crossToolConfirmed} />
             </div>
+            <p className="mt-4 border-t border-white/10 pt-3 text-center text-[0.65rem] font-bold opacity-70">{source.exclusiveFindings.toLocaleString()} unique to this source</p>
           </article>
         ))}
       </div>
 
       {historical && (
         <div className="mt-4 overflow-auto rounded-2xl border border-white/10 bg-black/20">
-          <table className="w-full min-w-[620px] text-left text-xs">
+          <table className="w-full min-w-[900px] text-left text-xs">
             <thead className="bg-black/30 uppercase tracking-wide text-slate-500">
-              <tr><th className="px-4 py-3">Period</th><th className="px-4 py-3">Files</th><th className="px-4 py-3">Sources</th><th className="px-4 py-3">Repeats Removed</th></tr>
+              <tr><th className="px-4 py-3">Period</th><th className="px-4 py-3">Open</th><th className="px-4 py-3">P1 + P2</th><th className="px-4 py-3">Exploit</th><th className="px-4 py-3">Cross-tool Confirmed</th><th className="px-4 py-3">Single-source</th><th className="px-4 py-3">Repeats Removed</th></tr>
             </thead>
             <tbody>
               {dashboard.sourceTrend.map((row) => (
                 <tr key={row.period} className="border-t border-white/5 text-slate-300">
                   <td className="px-4 py-3 font-black text-white">{row.period}</td>
-                  <td className="px-4 py-3">{row.fileCount}</td>
-                  <td className="px-4 py-3">{row.sources.map((source) => source.sourceLabel).join(" + ")}</td>
+                  <td className="px-4 py-3 font-black text-white">{row.totalOpen}</td>
+                  <td className="px-4 py-3 font-black text-red-200">{row.immediatePatch}</td>
+                  <td className="px-4 py-3 text-orange-200">{row.exploitable}</td>
+                  <td className="px-4 py-3 text-emerald-200">{row.crossToolConfirmed}</td>
+                  <td className="px-4 py-3 text-sky-200">{row.singleSourceOnly}</td>
                   <td className="px-4 py-3 font-black text-red-200">{row.duplicatesRemoved}</td>
                 </tr>
               ))}

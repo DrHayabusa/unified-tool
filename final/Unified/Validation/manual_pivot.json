@@ -1,0 +1,230 @@
+{
+  "status": "PASS",
+  "method": "Independent Python raw-CSV pivot; no React engine imports",
+  "periods": [
+    {
+      "period": "April 2026",
+      "rawObservations": 410,
+      "totalOpen": 150,
+      "newFindings": 0,
+      "patchedFindings": 0,
+      "carriedFindings": 0,
+      "repeatsRemoved": 260,
+      "crossToolConfirmed": 40,
+      "singleSourceOnly": 110,
+      "exploitAvailable": 70,
+      "priority": {
+        "P1": 42,
+        "P3": 23,
+        "P2": 62,
+        "P4": 23
+      },
+      "severity": {
+        "Critical": 38,
+        "High": 38,
+        "Medium": 37,
+        "Low": 37
+      },
+      "ageByPriority": {
+        "P1": {
+          ">7 days": 40,
+          ">30 days": 22,
+          ">60 days": 22,
+          ">180 days (6+ months)": 9
+        },
+        "P2": {
+          ">7 days": 60,
+          ">30 days": 45,
+          ">60 days": 44,
+          ">180 days (6+ months)": 27
+        },
+        "P3": {
+          ">7 days": 22,
+          ">30 days": 14,
+          ">60 days": 14,
+          ">180 days (6+ months)": 8
+        },
+        "P4": {
+          ">7 days": 21,
+          ">30 days": 12,
+          ">60 days": 12,
+          ">180 days (6+ months)": 6
+        }
+      },
+      "sourceRows": {
+        "tenable-sc": 100,
+        "tenable-io": 100,
+        "qualys": 100,
+        "crowdstrike": 110
+      }
+    },
+    {
+      "period": "May 2026",
+      "rawObservations": 450,
+      "totalOpen": 160,
+      "newFindings": 30,
+      "patchedFindings": 20,
+      "carriedFindings": 130,
+      "repeatsRemoved": 290,
+      "crossToolConfirmed": 40,
+      "singleSourceOnly": 120,
+      "exploitAvailable": 74,
+      "priority": {
+        "P1": 44,
+        "P3": 24,
+        "P4": 26,
+        "P2": 66
+      },
+      "severity": {
+        "Critical": 40,
+        "High": 40,
+        "Medium": 40,
+        "Low": 40
+      },
+      "ageByPriority": {
+        "P1": {
+          ">7 days": 44,
+          ">30 days": 39,
+          ">60 days": 20,
+          ">180 days (6+ months)": 10
+        },
+        "P2": {
+          ">7 days": 61,
+          ">30 days": 50,
+          ">60 days": 32,
+          ">180 days (6+ months)": 25
+        },
+        "P3": {
+          ">7 days": 23,
+          ">30 days": 20,
+          ">60 days": 11,
+          ">180 days (6+ months)": 7
+        },
+        "P4": {
+          ">7 days": 25,
+          ">30 days": 21,
+          ">60 days": 10,
+          ">180 days (6+ months)": 5
+        }
+      },
+      "sourceRows": {
+        "tenable-sc": 110,
+        "tenable-io": 110,
+        "qualys": 110,
+        "crowdstrike": 120
+      }
+    },
+    {
+      "period": "June 2026",
+      "rawObservations": 485,
+      "totalOpen": 165,
+      "newFindings": 25,
+      "patchedFindings": 20,
+      "carriedFindings": 140,
+      "repeatsRemoved": 320,
+      "crossToolConfirmed": 40,
+      "singleSourceOnly": 125,
+      "exploitAvailable": 78,
+      "priority": {
+        "P3": 23,
+        "P2": 73,
+        "P1": 44,
+        "P4": 25
+      },
+      "severity": {
+        "Medium": 41,
+        "Low": 41,
+        "Critical": 42,
+        "High": 41
+      },
+      "ageByPriority": {
+        "P1": {
+          ">7 days": 44,
+          ">30 days": 40,
+          ">60 days": 35,
+          ">180 days (6+ months)": 8
+        },
+        "P2": {
+          ">7 days": 71,
+          ">30 days": 58,
+          ">60 days": 42,
+          ">180 days (6+ months)": 19
+        },
+        "P3": {
+          ">7 days": 23,
+          ">30 days": 20,
+          ">60 days": 16,
+          ">180 days (6+ months)": 5
+        },
+        "P4": {
+          ">7 days": 24,
+          ">30 days": 22,
+          ">60 days": 17,
+          ">180 days (6+ months)": 5
+        }
+      },
+      "sourceRows": {
+        "tenable-sc": 120,
+        "tenable-io": 120,
+        "qualys": 120,
+        "crowdstrike": 125
+      }
+    },
+    {
+      "period": "July 2026",
+      "rawObservations": 495,
+      "totalOpen": 160,
+      "newFindings": 20,
+      "patchedFindings": 25,
+      "carriedFindings": 140,
+      "repeatsRemoved": 335,
+      "crossToolConfirmed": 40,
+      "singleSourceOnly": 120,
+      "exploitAvailable": 77,
+      "priority": {
+        "P2": 69,
+        "P1": 44,
+        "P3": 23,
+        "P4": 24
+      },
+      "severity": {
+        "Low": 40,
+        "Critical": 40,
+        "High": 40,
+        "Medium": 40
+      },
+      "ageByPriority": {
+        "P1": {
+          ">7 days": 44,
+          ">30 days": 39,
+          ">60 days": 35,
+          ">180 days (6+ months)": 12
+        },
+        "P2": {
+          ">7 days": 69,
+          ">30 days": 61,
+          ">60 days": 46,
+          ">180 days (6+ months)": 11
+        },
+        "P3": {
+          ">7 days": 23,
+          ">30 days": 19,
+          ">60 days": 16,
+          ">180 days (6+ months)": 3
+        },
+        "P4": {
+          ">7 days": 24,
+          ">30 days": 21,
+          ">60 days": 18,
+          ">180 days (6+ months)": 5
+        }
+      },
+      "sourceRows": {
+        "tenable-sc": 125,
+        "tenable-io": 125,
+        "qualys": 125,
+        "crowdstrike": 120
+      }
+    }
+  ]
+}

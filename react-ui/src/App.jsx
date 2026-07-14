@@ -15,6 +15,7 @@ import { TrendPanel } from "./components/TrendPanel.jsx";
 import { ThreatIntelPanel } from "./components/ThreatIntelPanel.jsx";
 import { UploadPanel } from "./components/UploadPanel.jsx";
 import { SourceCoveragePanel } from "./components/SourceCoveragePanel.jsx";
+import { UnifiedAnalysisDashboard } from "./components/UnifiedAnalysisDashboard.jsx";
 import { implementedSourceTools, sourceTools, unifiedSourceTool } from "./data/dashboardData.js";
 import { analyzeAdhocFiles, analyzeMonthlyFiles, analyzeQuarterlyScan } from "./lib/vulnerabilityEngine.js";
 
@@ -41,10 +42,12 @@ export default function App() {
     () => sourceSelectionMode === "multi" ? { mode: "multi", sourceIds: selectedSourceIds } : selectedSourceIds[0],
     [selectedSourceIds, sourceSelectionMode],
   );
+  const unifiedSelectionReady = sourceSelectionMode !== "multi" || selectedSourceIds.length >= 2;
   const focusComparisonDashboard = mode === "monthly" && Boolean(monthlyAnalysis);
   const focusWorkspace = focusComparisonDashboard || mode === "threat-intel";
 
   const handleModeChange = (nextMode) => {
+    if (!unifiedSelectionReady) return;
     setMode(nextMode);
   };
 
@@ -54,6 +57,7 @@ export default function App() {
       return;
     }
 
+    if (!unifiedSelectionReady) return;
     setMode(page);
   };
 
@@ -71,7 +75,7 @@ export default function App() {
   const handleSourceModeChange = (nextMode) => {
     if (nextMode === sourceSelectionMode) return;
     setSourceSelectionMode(nextMode);
-    setSelectedSourceIds(nextMode === "multi" ? implementedSourceTools.map((source) => source.id) : [selectedSourceIds[0] ?? "tenable-sc"]);
+    setSelectedSourceIds(nextMode === "multi" ? [] : [selectedSourceIds[0] ?? "tenable-sc"]);
     resetSourceWorkspace();
   };
 
@@ -82,8 +86,17 @@ export default function App() {
       resetSourceWorkspace();
       return;
     }
-    if (selectedSourceIds.includes(sourceId) && selectedSourceIds.length <= 2) return;
     setSelectedSourceIds((current) => current.includes(sourceId) ? current.filter((id) => id !== sourceId) : [...current, sourceId]);
+    resetSourceWorkspace();
+  };
+
+  const handleSelectAllSources = () => {
+    setSelectedSourceIds(implementedSourceTools.map((source) => source.id));
+    resetSourceWorkspace();
+  };
+
+  const handleClearSources = () => {
+    setSelectedSourceIds([]);
     resetSourceWorkspace();
   };
 
@@ -162,8 +175,20 @@ export default function App() {
               <div className="flex min-w-0 flex-col gap-5">
                 {!focusWorkspace && (
                   <>
-                    <SourceChoice selectionMode={sourceSelectionMode} selectedSourceIds={selectedSourceIds} onModeChange={handleSourceModeChange} onToggle={handleSourceToggle} />
-                    <OperationMode mode={mode} onModeChange={handleModeChange} />
+                    <SourceChoice
+                      selectionMode={sourceSelectionMode}
+                      selectedSourceIds={selectedSourceIds}
+                      onModeChange={handleSourceModeChange}
+                      onToggle={handleSourceToggle}
+                      onSelectAll={handleSelectAllSources}
+                      onClear={handleClearSources}
+                    />
+                    <OperationMode
+                      mode={mode}
+                      onModeChange={handleModeChange}
+                      disabled={!unifiedSelectionReady}
+                      disabledMessage="Select at least two source tools before choosing a unified workflow."
+                    />
                   </>
                 )}
 
@@ -176,6 +201,7 @@ export default function App() {
                     {adhocAnalysis ? (
                       <>
                         <MetricsRow dashboard={adhocAnalysis.dashboard} />
+                        <UnifiedAnalysisDashboard dashboard={adhocAnalysis.dashboard} />
                         <SourceCoveragePanel dashboard={adhocAnalysis.dashboard} inputSummary={adhocAnalysis.inputSummary} />
                         <TrendPanel dashboard={adhocAnalysis.dashboard} />
                         <div className="grid gap-5 xl:grid-cols-[1fr_1fr] 2xl:grid-cols-[1.1fr_1fr]">
@@ -212,6 +238,7 @@ export default function App() {
                     {quarterlyAnalysis ? (
                       <>
                         <MetricsRow dashboard={quarterlyAnalysis.dashboard} />
+                        <UnifiedAnalysisDashboard dashboard={quarterlyAnalysis.dashboard} />
                         <SourceCoveragePanel dashboard={quarterlyAnalysis.dashboard} inputSummary={quarterlyAnalysis.inputSummary} />
                         <QuarterlyTrendPanel dashboard={quarterlyAnalysis.dashboard} />
                         <TrendPanel dashboard={quarterlyAnalysis.dashboard} />
