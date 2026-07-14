@@ -30,3 +30,14 @@ test("AI threat intelligence JSON is normalized safely", () => {
   assert.equal(intel.highestSeverity, "High");
   assert.deepEqual(intel.references, ["https://example.com/advisory"]);
 });
+
+test("structured NVIDIA patch and reference objects remain readable", () => {
+  const intel = parseThreatIntelResponse(JSON.stringify({
+    summary: "Known issue",
+    patches: [{ name: "Apache Log4j", version: "2.17.1", url: "https://logging.apache.org/log4j/2.x/security.html" }],
+    references: [{ title: "Apache advisory", url: "https://logging.apache.org/log4j/2.x/security.html" }],
+  }), "NVIDIA");
+  assert.deepEqual(intel.patches, ["Apache Log4j - 2.17.1 - https://logging.apache.org/log4j/2.x/security.html"]);
+  assert.deepEqual(intel.references, ["https://logging.apache.org/log4j/2.x/security.html"]);
+  assert.doesNotMatch(intel.patches[0], /\[object Object\]/);
+});

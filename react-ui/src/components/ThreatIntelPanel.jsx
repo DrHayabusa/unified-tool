@@ -82,7 +82,7 @@ export function ThreatIntelPanel({ analysis, onBackToDashboard }) {
       }
       setStatus({ state: "success", message: "Threat-intelligence analysis completed." });
     } catch (error) {
-      setStatus({ state: "error", message: error.name === "AbortError" ? "Threat-intelligence request timed out after 5 minutes." : error.message || "Threat-intelligence analysis failed." });
+      setStatus({ state: "error", message: threatIntelError(error, sourceId) });
     } finally {
       window.clearTimeout(timeout);
     }
@@ -194,6 +194,18 @@ function ContextRow({ label, value }) {
 function Status({ status }) {
   const classes = status.state === "error" ? "border-red-300/25 bg-red-400/10 text-red-200" : status.state === "success" ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : status.state === "loading" ? "border-cyan-300/25 bg-cyan-400/10 text-cyan-200" : "border-white/10 bg-white/[0.035] text-slate-400";
   return <div aria-live="polite" className={`rounded-2xl border px-4 py-3 text-xs font-bold ${classes}`}>{status.message}</div>;
+}
+
+function threatIntelError(error, sourceId) {
+  if (error?.name === "AbortError") return "Threat-intelligence request timed out after 5 minutes.";
+  const message = error?.message || "Threat-intelligence analysis failed.";
+  if (sourceId === "nvidia" && /failed to fetch/i.test(message)) {
+    return "The browser could not reach the configured MVA NVIDIA relay. Keep the prefilled relay URL, refresh the page, and confirm your VPN or firewall allows the relay domain.";
+  }
+  if (sourceId === "nvidia" && (error?.status === 401 || /unauthorized|authentication/i.test(message))) {
+    return "NVIDIA rejected the session key. Generate a fresh NVIDIA key and paste the complete value.";
+  }
+  return message;
 }
 
 function optionalLocalContext(analysis, query) {

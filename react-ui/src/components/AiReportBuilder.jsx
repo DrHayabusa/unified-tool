@@ -27,7 +27,7 @@ export function AiReportBuilder({ analysis, selectedMonth, onMonthChange, monthO
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 600_000);
     try {
-      const payload = await callOpenAiCompatible({
+      await callOpenAiCompatible({
         provider,
         baseUrl: providerBaseUrl,
         apiKey: sessionApiKey,
@@ -36,8 +36,7 @@ export function AiReportBuilder({ analysis, selectedMonth, onMonthChange, monthO
         maxTokens: 16,
         signal: controller.signal,
       });
-      const answer = completionText(payload, { allowReasoning: true }) || "Connected";
-      setConnectionState({ status: "success", message: `Connected to ${providerModel}: ${answer.slice(0, 100)}` });
+      setConnectionState({ status: "success", message: `Connected to ${providerModel}. Relay and NVIDIA authorization verified.` });
     } catch (error) {
       setConnectionState({ status: "error", message: providerError(error) });
     } finally {
@@ -51,7 +50,7 @@ export function AiReportBuilder({ analysis, selectedMonth, onMonthChange, monthO
       setReportState({ status: "error", message: readinessError });
       return;
     }
-    setReportState({ status: "testing", message: `Generating the ${targetPeriod} Remediation Guide with NVIDIA...` });
+    setReportState({ status: "testing", message: `Generating the ${targetPeriod} Remediation Guide with NVIDIA. A complete guide can take 2-5 minutes; keep this tab open.` });
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 600_000);
     try {
@@ -140,6 +139,6 @@ function providerError(error) {
   if (error?.status === 401 || /401|unauthorized|invalid api key/i.test(message)) return "Unauthorized: generate a fresh NVIDIA key and paste the complete value for this session.";
   if (error?.status === 403 || /forbidden/i.test(message)) return "NVIDIA rejected this model or key permission. Verify model access for the key.";
   if (error?.status === 429 || /rate limit/i.test(message)) return "NVIDIA rate limit reached. Wait briefly and retry.";
-  if (/failed to fetch/i.test(message)) return "The browser could not reach the MVA NVIDIA relay. Confirm the HTTPS relay URL is online; do not enter integrate.api.nvidia.com here.";
+  if (/failed to fetch/i.test(message)) return "The browser could not reach the configured MVA NVIDIA relay. Keep the prefilled relay URL, refresh the page, and confirm your VPN or firewall allows the relay domain.";
   return message;
 }

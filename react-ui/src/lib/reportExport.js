@@ -37,6 +37,16 @@ const FINDING_COLUMNS = [
 
 export async function downloadAnalysisWorkbook(analysis) {
   if (!analysis) throw new Error("Analyze an export before generating the Excel report.");
+  const workbook = await buildAnalysisWorkbook(analysis);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const suffix = isComparisonWorkflow(analysis)
+    ? (analysis.dashboard.uploadedPeriods ?? analysis.dashboard.uploadedMonths).at(-1).replaceAll(" ", "_")
+    : analysis.workflow === "quarterly-scan" ? "Quarterly_3_Month" : "Adhoc";
+  saveBlob(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `MVA_${safeName(analysis.sourceLabel)}_${suffix}_Report.xlsx`);
+}
+
+export async function buildAnalysisWorkbook(analysis) {
+  if (!analysis) throw new Error("Analyze an export before generating the Excel report.");
   const { default: ExcelJS } = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "MVA Unified Agent";
@@ -47,12 +57,7 @@ export async function downloadAnalysisWorkbook(analysis) {
   if (isComparisonWorkflow(analysis)) await buildMonthlySheet(workbook, analysis);
   else await buildAdhocSheet(workbook, analysis);
   buildFindingsSheet(workbook, isComparisonWorkflow(analysis) ? analysis.currentFindings : analysis.findings);
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const suffix = isComparisonWorkflow(analysis)
-    ? (analysis.dashboard.uploadedPeriods ?? analysis.dashboard.uploadedMonths).at(-1).replaceAll(" ", "_")
-    : analysis.workflow === "quarterly-scan" ? "Quarterly_3_Month" : "Adhoc";
-  saveBlob(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `MVA_${safeName(analysis.sourceLabel)}_${suffix}_Report.xlsx`);
+  return workbook;
 }
 
 export function downloadNormalizedCsv(analysis) {
@@ -162,7 +167,7 @@ async function buildAdhocSheet(workbook, analysis) {
   const sheet = workbook.addWorksheet(quarterly ? "Quarterly Report" : "Adhoc Report", { views: [{ state: "frozen", ySplit: 3, showGridLines: false }] });
   const dashboard = analysis.dashboard;
   prepareSheet(sheet, 12);
-  title(sheet, `${analysis.sourceLabel} ${quarterly ? "Quarterly 3-Month" : "Adhoc"} Vulnerability Report`, `${quarterly ? `${analysis.reportPeriod} | ` : ""}${analysis.exportType} | ${analysis.fileName}`, 12);
+  title(sheet, `${reportSourceLabel(analysis.sourceLabel)} ${quarterly ? "Quarterly 3-Month" : "Adhoc"} Vulnerability Report`, `${quarterly ? `${analysis.reportPeriod} | ` : ""}${analysis.exportType} | ${analysis.fileName}`, 12);
   kpi(sheet, "A4:C7", "TOTAL VULNERABILITIES", dashboard.totalVulnerabilities, "Open findings", COLORS.teal);
   kpi(sheet, "D4:F7", "DISTINCT ASSETS", dashboard.distinctAssets, "Affected assets", "0284C7");
   kpi(sheet, "G4:I7", "EXPLOIT AVAILABLE", dashboard.exploitAvailable, "Known exploit signal", COLORS.high);
@@ -174,9 +179,10 @@ async function buildAdhocSheet(workbook, analysis) {
   writeTable(sheet, 10, 7, ["Patch Priority", "Count"], Object.entries(dashboard.patchPriorityCounts), true);
 
   section(sheet, "A19:F19", "Top 10 Affected Assets");
-  writeTable(sheet, 20, 1, ["Asset", "Vulnerability Count"], dashboard.top10AffectedAssets.map((row) => [row.asset, row.vulnerabilityCount]));
-  section(sheet, "G19:L19", "Top Products");
-  writeTable(sheet, 20, 7, ["Product", "Vulnerability Count"], dashboard.topProducts.map((row) => [row.product, row.vulnerabilityCount]));
+  const affectedAssets = dashboard.top10AffectedAssets.map((row) => [row.asset, row.vulnerabilityCount]);
+  writeAffectedAssetsTable(sheet, 20, affectedAssets);
+  section(sheet, "G19:L19", "Affected Asset Concentration");
+  writeAssetConcentration(sheet, 20, affectedAssets, COLORS.critical);
 
   if (quarterly) {
     section(sheet, "A32:L32", "Vulnerabilities Discovered - Last 3 Months");
@@ -194,7 +200,7 @@ async function buildAdhocSheet(workbook, analysis) {
 function buildFindingsSheet(workbook, findings) {
   const sheet = workbook.addWorksheet("Report Data", { views: [{ state: "frozen", ySplit: 1, xSplit: 2, showGridLines: false }] });
   sheet.columns = FINDING_COLUMNS.map(([header, key, width]) => ({ header, key, width }));
-  const rows = findings.map((finding) => Object.fromEntries(FINDING_COLUMNS.map(([, key]) => [key, key === "exploitAvailable" ? (finding[key] ? "Yes" : "No") : finding[key] ?? ""])));
+  const rows = findings.map((finding) => Object.fromEntries(FINDING_COLUMNS.map(([, key]) => [key, findingCellValue(finding, key)])));
   sheet.addRows(rows);
   styleHeader(sheet.getRow(1));
   sheet.autoFilter = { from: "A1", to: `${column(FINDING_COLUMNS.length)}${Math.max(1, rows.length + 1)}` };
@@ -293,16 +299,67 @@ function writeTable(sheet, startRow, startColumn, headers, rows, colorPriority =
   });
 }
 
-function sparkBars(sheet, startRow, startColumn, rows, color) {
+function writeAffectedAssetsTable(sheet, startRow, rows) {
+  sheet.mergeCells(startRow, 1, startRow, 5);
+  tableHeaderCell(sheet.getCell(startRow, 1), "Asset");
+  tableHeaderCell(sheet.getCell(startRow, 6), "Count");
+
+  rows.forEach(([asset, value], rowOffset) => {
+    const row = startRow + rowOffset + 1;
+    sheet.mergeCells(row, 1, row, 5);
+    const assetCell = sheet.getCell(row, 1);
+    assetCell.value = asset;
+    assetCell.alignment = { vertical: "middle", shrinkToFit: true };
+    assetCell.fill = solid(rowOffset % 2 === 0 ? "F8FAFC" : "F1F5F9");
+    assetCell.font = { color: { argb: `FF${COLORS.slate}` } };
+
+    const countCell = sheet.getCell(row, 6);
+    countCell.value = value;
+    countCell.alignment = { horizontal: "center", vertical: "middle" };
+    countCell.fill = solid(rowOffset % 2 === 0 ? "F8FAFC" : "F1F5F9");
+    countCell.font = { bold: true, color: { argb: `FF${COLORS.navy}` } };
+  });
+}
+
+function writeAssetConcentration(sheet, startRow, rows, color) {
+  sheet.mergeCells(startRow, 7, startRow, 9);
+  tableHeaderCell(sheet.getCell(startRow, 7), "Asset");
+  sheet.mergeCells(startRow, 10, startRow, 12);
+  tableHeaderCell(sheet.getCell(startRow, 10), "Relative concentration");
+
   const max = Math.max(1, ...rows.map(([, value]) => Number(value) || 0));
   rows.forEach(([label, value], rowOffset) => {
-    sheet.getCell(startRow + rowOffset + 1, startColumn).value = label;
+    const row = startRow + rowOffset + 1;
+    sheet.mergeCells(row, 7, row, 9);
+    const labelCell = sheet.getCell(row, 7);
+    labelCell.value = label;
+    labelCell.alignment = { vertical: "middle", shrinkToFit: true };
+    labelCell.fill = solid(rowOffset % 2 === 0 ? "F8FAFC" : "F1F5F9");
+    labelCell.font = { color: { argb: `FF${COLORS.slate}` } };
+
     const blocks = Math.max(1, Math.round((Number(value) / max) * 12));
-    sheet.mergeCells(startRow + rowOffset + 1, startColumn + 1, startRow + rowOffset + 1, startColumn + 2);
-    const cell = sheet.getCell(startRow + rowOffset + 1, startColumn + 1);
+    sheet.mergeCells(row, 10, row, 12);
+    const cell = sheet.getCell(row, 10);
     cell.value = `${"■".repeat(blocks)} ${value}`;
+    cell.alignment = { vertical: "middle", shrinkToFit: true };
+    cell.fill = solid(rowOffset % 2 === 0 ? "F8FAFC" : "F1F5F9");
     cell.font = { bold: true, color: { argb: `FF${color}` } };
   });
+}
+
+function tableHeaderCell(cell, value) {
+  cell.value = value;
+  cell.fill = solid(COLORS.navy);
+  cell.font = { bold: true, color: { argb: `FF${COLORS.white}` } };
+  cell.alignment = { vertical: "middle" };
+}
+
+function findingCellValue(finding, key) {
+  if (key === "exploitAvailable") return finding[key] ? "Yes" : "No";
+  const value = finding[key];
+  if (value !== undefined && value !== null && value !== "") return value;
+  if (key === "firstDiscovered" || key === "lastObserved") return "Not provided by source export";
+  return "N/A";
 }
 
 async function addLineChartImage(workbook, sheet, points, chartTitle, color, placement) {
