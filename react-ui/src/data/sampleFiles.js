@@ -1,3 +1,5 @@
+import Papa from "papaparse";
+
 const monthlySamples = {
   "tenable-sc": ["april", "may", "june", "july"].map((month) => `sample-data/tenable-sc/tenable_sc_${month}_2026_100plus.csv`),
   "tenable-io": ["april", "may", "june", "july"].map((month) => `sample-data/tenable-io/tenable_io_${month}_2026_100plus.csv`),
@@ -55,9 +57,79 @@ export async function loadBundledSamples(sourceId, workflow, crowdStrikeVariant 
 export async function loadUnifiedBundledSamples(sourceIds, workflow) {
   const normalizedWorkflow = workflow === "quarterly-scan" ? "adhoc" : workflow;
   const sampleGroups = await Promise.all(
-    Array.from(sourceIds ?? []).map((sourceId) => loadBundledSamples(sourceId, normalizedWorkflow, "vulnerability-per-asset")),
+    Array.from(sourceIds ?? []).map(async (sourceId) => {
+      const files = await loadBundledSamples(sourceId, normalizedWorkflow, "vulnerability-per-asset");
+      return Promise.all(files.map(async (file) => new File(
+        [diversifyUnifiedSampleText(await file.text(), sourceId)],
+        file.name,
+        { type: file.type || "text/csv" },
+      )));
+    }),
   );
   return sampleGroups.flat();
+}
+
+// Unified demos retain shared detections while adding stable scanner-only findings.
+// This affects bundled samples only; uploaded customer exports are never modified.
+export function diversifyUnifiedSampleText(text, sourceId) {
+  if (!text || !["tenable-io", "qualys"].includes(sourceId)) return text;
+
+  const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+  if (!parsed.meta.fields?.length || parsed.errors.some((error) => error.type === "Quotes")) {
+    throw new Error(`The bundled ${sourceId} sample could not be prepared for unified analysis.`);
+  }
+
+  const rows = parsed.data.map((row) => {
+    const identity = sampleFindingIdentity(row, sourceId);
+    const scannerBucket = stableHash(identity) % 4;
+    const shouldDiversify = (sourceId === "tenable-io" && scannerBucket === 0)
+      || (sourceId === "qualys" && scannerBucket === 1);
+    if (!shouldDiversify) return row;
+
+    const diversified = { ...row };
+    if (sourceId === "tenable-io") {
+      for (const field of ["asset.display_fqdn", "asset.host_name", "asset.name", "asset.netbios_name"]) {
+        diversified[field] = prefixSampleIdentity(diversified[field], "io-only");
+      }
+      for (const field of ["asset.display_ipv4_address", "asset.ipv4_addresses", "scan.target"]) {
+        diversified[field] = replaceSubnet(diversified[field], "10.20.", "10.21.");
+      }
+    } else {
+      for (const field of ["DNS", "FQDN", "NetBIOS"]) {
+        diversified[field] = prefixSampleIdentity(diversified[field], "qualys-only");
+      }
+      diversified.IP = replaceSubnet(diversified.IP, "10.30.", "10.31.");
+    }
+    return diversified;
+  });
+
+  return Papa.unparse(rows, { columns: parsed.meta.fields, newline: "\r\n" });
+}
+
+function sampleFindingIdentity(row, sourceId) {
+  const fields = sourceId === "tenable-io"
+    ? [row["asset.display_fqdn"], row["definition.cve"] || row["definition.name"], row.protocol, row.port]
+    : [row.FQDN || row.DNS, row["CVE ID"] || row.Title, row.Protocol, row.Port];
+  return fields.map((value) => String(value ?? "").trim().toLowerCase()).join("|");
+}
+
+function stableHash(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function prefixSampleIdentity(value, prefix) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized || normalized.toLowerCase().startsWith(`${prefix}-`)) return normalized;
+  return `${prefix}-${normalized}`;
+}
+
+function replaceSubnet(value, originalSubnet, sampleSubnet) {
+  return String(value ?? "").split(originalSubnet).join(sampleSubnet);
 }
 
 function shiftSampleDatesToQuarter(text) {

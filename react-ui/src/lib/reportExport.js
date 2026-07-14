@@ -81,9 +81,9 @@ async function buildUnifiedDashboardSheet(workbook, analysis) {
   kpi(sheet, "E4:H7", "AFFECTED ASSETS", insights.distinctAssets, "Unique consolidated assets", "0284C7");
   kpi(sheet, "I4:L7", "IMMEDIATE PATCH", insights.immediatePatch, "P1 + P2 findings", COLORS.critical);
   kpi(sheet, "M4:P7", "EXPLOIT AVAILABLE", insights.exploitAvailable, "Positive exploit evidence", COLORS.high);
-  kpi(sheet, "A9:D12", "CROSS-TOOL CONFIRMED", insights.crossToolConfirmed, "Observed by two or more scanners", COLORS.low);
+  kpi(sheet, "A9:D12", "MULTI-SCANNER OVERLAP", insights.crossToolConfirmed, "Observed by two or more scanners", COLORS.low);
   kpi(sheet, "E9:H12", "SINGLE-SOURCE ONLY", insights.singleSourceOnly, "One-source validation queue", "0284C7");
-  kpi(sheet, "I9:L12", "CONFIRMATION RATE", `${insights.confirmationRate}%`, "Cross-tool confirmed / open", "0891B2");
+  kpi(sheet, "I9:L12", "OVERLAP RATE", `${insights.confirmationRate}%`, "Multi-scanner overlap / open", "0891B2");
   kpi(sheet, "M9:P12", "REPEATS REMOVED", latestSummary.duplicatesRemoved ?? 0, "Repeated source observations", COLORS.high);
 
   let detailStartRow;
@@ -93,7 +93,7 @@ async function buildUnifiedDashboardSheet(workbook, analysis) {
       sheet,
       15,
       1,
-      ["Period", "Total Open", "New", "Patched", "P1", "P2", "P3", "P4", "Cross-tool Confirmed", "Single-source", "Exploit Available", "Repeats Removed"],
+      ["Period", "Total Open", "New", "Patched", "P1", "P2", "P3", "P4", "Multi-scanner Overlap", "Single-scanner", "Exploit Available", "Repeats Removed"],
       dashboard.unifiedTrend.map((row) => [row.period, row.totalOpen, row.newFindings, row.patchedFindings, row.P1, row.P2, row.P3, row.P4, row.crossToolConfirmed, row.singleSourceOnly, row.exploitable, row.repeatsRemoved]),
     );
     const chartRow = 17 + dashboard.unifiedTrend.length;
@@ -121,12 +121,12 @@ async function buildUnifiedDashboardSheet(workbook, analysis) {
     );
     detailStartRow = chartRow + 14;
   } else {
-    section(sheet, "A14:H14", "Cross-Scanner Confirmation Depth");
-    writeTable(sheet, 15, 1, ["Confirmation Depth", "Open Findings"], insights.sourceAgreementDistribution.map((row) => [row.label, row.findingCount]));
+    section(sheet, "A14:H14", "Detection Overlap by Scanner Count");
+    writeTable(sheet, 15, 1, ["Scanner Count", "Open Findings"], insights.sourceAgreementDistribution.map((row) => [row.label, row.findingCount]));
     section(sheet, "I14:P14", "Combined Patch Priority Exposure");
     writeTable(sheet, 15, 9, ["Patch Priority", "Open Findings"], Object.entries(insights.patchPriorityCounts), true);
     const chartRow = 21;
-    await addBarChartImage(workbook, sheet, insights.sourceAgreementDistribution.map((row) => ({ label: row.label, value: row.findingCount, color: "#16A34A" })), "Cross-Scanner Confirmation Depth", { col: 0.3, row: chartRow - 0.5, width: 610, height: 250 });
+    await addBarChartImage(workbook, sheet, insights.sourceAgreementDistribution.map((row) => ({ label: row.label, value: row.findingCount, color: "#16A34A" })), "Detection Overlap by Scanner Count", { col: 0.3, row: chartRow - 0.5, width: 610, height: 250 });
     await addBarChartImage(workbook, sheet, Object.entries(insights.patchPriorityCounts).map(([label, value]) => ({ label, value, color: `#${COLORS[label]}` })), "Combined Priority Exposure", { col: 8.1, row: chartRow - 0.5, width: 610, height: 250 });
     detailStartRow = chartRow + 14;
   }
@@ -154,11 +154,11 @@ async function buildUnifiedDashboardSheet(workbook, analysis) {
     sheet,
     sourceStartRow + 1,
     1,
-    ["Scanner", "Observed", "Assets", "P1 + P2", "Critical", "Exploit Available", "Cross-tool Confirmed", "Source-only"],
+    ["Scanner", "Observed", "Assets", "P1 + P2", "Critical", "Exploit Available", "Multi-scanner Overlap", "Scanner-only"],
     (dashboard.sourceBreakdown ?? []).map((source) => [source.sourceLabel, source.openFindings, source.affectedAssets, source.immediatePatch, source.criticalFindings, source.exploitAvailable, source.crossToolConfirmed, source.exclusiveFindings]),
   );
   section(sheet, `J${sourceStartRow}:P${sourceStartRow}`, "Cross-Scanner Overlap");
-  writeTable(sheet, sourceStartRow + 1, 10, ["Scanner Pair", "Confirmed Findings"], insights.sourcePairOverlap.map((row) => [row.sourcePair, row.findingCount]));
+  writeTable(sheet, sourceStartRow + 1, 10, ["Scanner Pair", "Overlapping Findings"], insights.sourcePairOverlap.map((row) => [row.sourcePair, row.findingCount]));
 }
 
 export function downloadNormalizedCsv(analysis) {
@@ -348,7 +348,7 @@ function buildSourceAuditSheet(workbook, analysis) {
     source.crossToolConfirmed,
     source.exclusiveFindings,
   ]);
-  writeTable(sheet, 10, 1, ["Scanner Source", "Observed Findings", "Affected Assets", "P1 + P2", "Critical", "Exploit Available", "Cross-tool Confirmed", "Source-only"], sourceRows, true);
+  writeTable(sheet, 10, 1, ["Scanner Source", "Observed Findings", "Affected Assets", "P1 + P2", "Critical", "Exploit Available", "Multi-scanner Overlap", "Scanner-only"], sourceRows, true);
 
   if ((analysis.dashboard?.sourceTrend?.length ?? 0) > 1) {
     section(sheet, "A18:I18", "Historical Consolidation Audit");
@@ -356,7 +356,7 @@ function buildSourceAuditSheet(workbook, analysis) {
       sheet,
       19,
       1,
-      ["Period", "Open", "P1 + P2", "Exploit Available", "Cross-tool Confirmed", "Single-source", "Repeats Removed"],
+      ["Period", "Open", "P1 + P2", "Exploit Available", "Multi-scanner Overlap", "Single-scanner", "Repeats Removed"],
       analysis.dashboard.sourceTrend.map((row) => [row.period, row.totalOpen, row.immediatePatch, row.exploitable, row.crossToolConfirmed, row.singleSourceOnly, row.duplicatesRemoved]),
       true,
     );

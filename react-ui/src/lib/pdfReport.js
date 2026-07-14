@@ -32,7 +32,7 @@ Create an industry-standard document with this exact document identity:
 Required structure:
 1. A clean Contents section.
 2. Portfolio Risk Overview with actionable counts, P1-P4 posture, cross-scanner confirmation, and source contribution when combined scanner analytics are supplied.
-3. Trend Analysis with total open, new, patched, P1-P4, cross-tool confirmed, and single-source movement when historical analytics are supplied.
+3. Trend Analysis with total open, new, patched, P1-P4, multi-scanner overlap, and single-scanner movement when historical analytics are supplied.
 4. Remediation Actions ordered P1, P2, P3, then P4.
 5. Group repeated findings by CVE or vulnerability name. For every action include affected finding count, example assets, CVE, severity, patch priority, reference links, prerequisites, numbered remediation steps, command examples, rollback, and validation.
 6. Put every command in a fenced code block with a language tag (bash, powershell, sql, or text).
@@ -90,7 +90,7 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
       `| Immediate Patch (P1 + P2) | ${portfolio.immediatePatch} |`,
       `| Exploit Available | ${portfolio.exploitAvailable} |`,
       `| Cross-tool Confirmed | ${portfolio.crossToolConfirmed} |`,
-      `| Single-source Only | ${portfolio.singleSourceOnly} |`,
+      `| Single-scanner Only | ${portfolio.singleSourceOnly} |`,
       `| Confirmation Rate | ${portfolio.confirmationRate}% |`,
       "",
       "### Patch Priority Posture",
@@ -125,7 +125,7 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
       "",
       "## 2. Trend Analysis",
       "",
-      "| Period | Total Open | New | Patched | P1 | P2 | P3 | P4 | Confirmed | Single-source |",
+      "| Period | Total Open | New | Patched | P1 | P2 | P3 | P4 | Multi-scanner Overlap | Single-scanner |",
       "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
       ...portfolio.trend.map((row) => `| ${row.period} | ${row.totalOpen} | ${row.newFindings} | ${row.patchedFindings} | ${row.P1} | ${row.P2} | ${row.P3} | ${row.P4} | ${row.crossToolConfirmed} | ${row.singleSourceOnly} |`),
     );

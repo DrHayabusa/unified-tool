@@ -54,7 +54,7 @@ export function SourceCoveragePanel({ dashboard, inputSummary }) {
               <SourceMeasure label="P1 + P2" value={source.immediatePatch} />
               <SourceMeasure label="Critical" value={source.criticalFindings} />
               <SourceMeasure label="Exploit" value={source.exploitAvailable} />
-              <SourceMeasure label="Confirmed" value={source.crossToolConfirmed} />
+              <SourceMeasure label="Overlapping" value={source.crossToolConfirmed} />
             </div>
             <p className="mt-4 border-t border-white/10 pt-3 text-center text-[0.65rem] font-bold opacity-70">{source.exclusiveFindings.toLocaleString()} unique to this source</p>
           </article>
@@ -65,7 +65,7 @@ export function SourceCoveragePanel({ dashboard, inputSummary }) {
         <div className="mt-4 overflow-auto rounded-2xl border border-white/10 bg-black/20">
           <table className="w-full min-w-[900px] text-left text-xs">
             <thead className="bg-black/30 uppercase tracking-wide text-slate-500">
-              <tr><th className="px-4 py-3">Period</th><th className="px-4 py-3">Open</th><th className="px-4 py-3">P1 + P2</th><th className="px-4 py-3">Exploit</th><th className="px-4 py-3">Cross-tool Confirmed</th><th className="px-4 py-3">Single-source</th><th className="px-4 py-3">Repeats Removed</th></tr>
+              <tr><th className="px-4 py-3">Period</th><th className="px-4 py-3">Open</th><th className="px-4 py-3">P1 + P2</th><th className="px-4 py-3">Exploit</th><th className="px-4 py-3">Multi-scanner Overlap</th><th className="px-4 py-3">Single-scanner</th><th className="px-4 py-3">Repeats Removed</th></tr>
             </thead>
             <tbody>
               {dashboard.sourceTrend.map((row) => (
