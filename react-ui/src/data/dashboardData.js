@@ -55,6 +55,18 @@ export const sourceTools = [
   },
 ];
 
+export const implementedSourceTools = sourceTools.filter((source) => source.implemented);
+
+export const unifiedSourceTool = {
+  id: "unified",
+  name: "Unified Multi-Tool",
+  shortName: "ALL",
+  accent: "red",
+  description: "Cross-scanner consolidated analysis",
+  mapped: "Source-aware canonical mapping",
+  implemented: true,
+};
+
 export const metricCards = [
   {
     label: "Total Open",

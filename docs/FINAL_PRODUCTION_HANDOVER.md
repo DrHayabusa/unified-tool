@@ -6,7 +6,7 @@ Repository: `https://github.com/DrHayabusa/unified-tool`
 
 Public frontend: `https://drhayabusa.github.io/unified-tool/`
 
-This document is the definitive build, operation, validation, and reconstruction reference for the no-database MVA Unified Agent. It supersedes older UI mockup notes where behavior differs.
+This document is the definitive build, operation, validation, and reconstruction reference for the no-database MVA Unified Agent. It supersedes older UI mockup notes where behavior differs. The complete cross-scanner identity, correlation, history, export, performance, and future database design is documented in [UNIFIED_MULTI_TOOL_IMPLEMENTATION.md](UNIFIED_MULTI_TOOL_IMPLEMENTATION.md).
 
 ## 1. Product Scope
 
@@ -23,6 +23,7 @@ MVA is a browser-first vulnerability intake and remediation platform. It:
 9. Generates a customer-ready Remediation Guide PDF locally or through an AI provider.
 10. Provides defensive Threat Intelligence from uploaded evidence, NVIDIA NIM, or organization APIs.
 11. Keeps scanner parsing, comparison, dashboards, and local exports in the browser and uses no database.
+12. Supports explicit Unified Multi-Tool selection, cumulative multi-file uploads, conservative cross-scanner correlation, source provenance, per-period source audits, and consolidated Adhoc/Monthly/Quarterly reporting.
 
 Implemented source workflows:
 
@@ -578,7 +579,7 @@ NVIDIA Intelligence returns all six result sections with authoritative HTTPS ref
 NVIDIA PDF reaches the downloaded-success state through the configured relay
 ```
 
-Release validation on 14 July 2026 completed with 32/32 JavaScript tests, 19/19 Python regression tests, a successful production build, zero formula errors in all four final Adhoc workbooks, four deployed-browser Adhoc source runs, a real NVIDIA Log4Shell Intelligence request, and a real NVIDIA Remediation Guide generation.
+Release validation on 14 July 2026 completed with 39/39 JavaScript tests, 19/19 Python regression tests, a successful production build, an 80,000-observation correlation benchmark, Unified Adhoc/Monthly/Quarterly localhost browser runs, Unified Excel/CSV/PDF success states, zero formula errors in the previously validated final Adhoc workbooks, a real NVIDIA Log4Shell Intelligence request, and a real NVIDIA Remediation Guide generation.
 
 ## 18. Rebuild Procedure
 

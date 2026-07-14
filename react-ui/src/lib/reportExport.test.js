@@ -61,6 +61,24 @@ test("Qualys Adhoc workbook explains dates absent from the source export", async
   }
 });
 
+test("Unified workbook preserves scanner provenance and consolidation audit", async () => {
+  const files = await Promise.all(CASES.map(([, relativePath]) => fakeFile(path.join(root, relativePath.replace("qualys_adhoc", "qualys_monthly")))));
+  const analysis = await analyzeAdhocFiles(files, { mode: "multi", sourceIds: CASES.map(([sourceId]) => sourceId) });
+  const workbook = await buildAnalysisWorkbook(analysis);
+  const data = workbook.getWorksheet("Report Data");
+  const audit = workbook.getWorksheet("Source Audit");
+
+  assert.ok(audit);
+  assert.equal(data.getCell("Q1").value, "Source Tools");
+  assert.equal(data.getCell("R1").value, "Record Count");
+  assert.ok(data.getColumn(17).values.slice(2).every((value) => String(value).length > 0));
+  assert.equal(audit.getCell("A1").value, "Unified Multi-Tool Source Audit");
+  assert.equal(audit.getCell("A5").value, 4);
+  assert.equal(audit.getCell("C5").value, 4);
+  assert.equal(audit.getCell("E5").value, analysis.dashboard.totalVulnerabilities);
+  assert.equal(audit.getCell("H5").value, analysis.inputSummary.duplicatesRemoved);
+});
+
 async function fakeFile(filePath) {
   const blob = new Blob([await readFile(filePath)], { type: "text/csv" });
   Object.defineProperty(blob, "name", { value: path.basename(filePath) });

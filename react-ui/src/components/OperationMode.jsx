@@ -18,7 +18,7 @@ const modes = [
   {
     id: "quarterly",
     title: "Quarterly Analysis",
-    subtitle: "One scan export summarized across its latest three months, with a discovery trend and report outputs.",
+    subtitle: "One current reporting cycle summarized across its latest three months, with a discovery trend and report outputs.",
     icon: CalendarRange,
     accent: "from-red-500 to-rose-700",
   },

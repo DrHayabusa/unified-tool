@@ -21,11 +21,12 @@ export function RemediationQueue({ findings = [] }) {
   const [search, setSearch] = useState("");
   const [priority, setPriority] = useState("All");
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
+  const showSources = new Set(findings.flatMap((finding) => finding.sourceTools ?? [finding.sourceTool]).filter(Boolean)).size > 1;
   const filtered = findings
     .filter((finding) => priority === "All" || finding.patchPriority === priority)
     .filter((finding) => {
       if (!deferredSearch) return true;
-      return [finding.ipAddress, finding.dnsName, finding.vulnerabilityName, finding.cve, finding.product]
+      return [finding.ipAddress, finding.dnsName, finding.vulnerabilityName, finding.cve, finding.product, finding.sourceDisplay]
         .join(" ")
         .toLowerCase()
         .includes(deferredSearch);
@@ -64,10 +65,10 @@ export function RemediationQueue({ findings = [] }) {
       </div>
 
       <div className="overflow-auto rounded-2xl border border-white/10">
-        <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
+        <table className={`w-full border-collapse text-left text-sm ${showSources ? "min-w-[1280px]" : "min-w-[1080px]"}`}>
           <thead className="sticky top-0 z-10 bg-slate-900 text-xs uppercase tracking-wide text-slate-400">
             <tr>
-              {["IP Address", "DNS Name", "Vulnerability Name", "CVE", "Severity", "Exploit", "Priority", "Exposure", "Count"].map((heading) => (
+              {["IP Address", "DNS Name", ...(showSources ? ["Source Tools"] : []), "Vulnerability Name", "CVE", "Severity", "Exploit", "Priority", "Exposure", "Count"].map((heading) => (
                 <th key={heading} className="px-4 py-4 font-black">{heading}</th>
               ))}
             </tr>
@@ -77,6 +78,7 @@ export function RemediationQueue({ findings = [] }) {
               <tr key={row.findingKey} className="border-t border-white/10 bg-slate-950/35 text-slate-300 hover:bg-cyan-400/5">
                 <td className="px-4 py-4 font-bold">{row.ipAddress || "-"}</td>
                 <td className="px-4 py-4 font-bold">{row.dnsName || "-"}</td>
+                {showSources && <td className="max-w-56 px-4 py-4 text-xs font-black text-cyan-200">{row.sourceDisplay || row.sourceTool}</td>}
                 <td className="max-w-md px-4 py-4 font-bold text-slate-100">{row.vulnerabilityName}</td>
                 <td className="px-4 py-4 font-mono text-xs font-bold">{row.cve || "N/A"}</td>
                 <td className="px-4 py-4"><span className={`rounded-full px-3 py-1 text-xs font-black ${severityClass[row.severity] ?? severityClass.Unknown}`}>{row.severity}</span></td>

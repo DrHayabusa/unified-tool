@@ -1,21 +1,27 @@
 import { CheckCircle2 } from "lucide-react";
 
 const mappings = {
+  unified: [
+    ["Asset Identity", "DNS/FQDN + IP aliases per scanner"], ["Vulnerability Identity", "CVE, then normalized finding name"],
+    ["Service Identity", "Protocol + port (product fallback)"], ["Severity", "Highest severity across matching observations"],
+    ["Exploit Available", "Yes when any contributing scanner reports availability"], ["Patch Priority", "Recalculated after consolidation"],
+    ["Dates", "Earliest discovered + latest observed"], ["Source Provenance", "Every contributing scanner retained"],
+  ],
   "tenable-sc": [
     ["IP Address", "IP Address"], ["DNS Name", "DNS Name"], ["Vulnerability Name", "Plugin Name"], ["CVE", "CVE"],
-    ["Severity", "Severity / Risk Factor"], ["Exploit Availability", "Exploit?"], ["First Discovered", "First Discovered"], ["Remediation", "Steps to Remediate"],
+    ["Severity", "Severity / Risk Factor"], ["Exploit Available", "Exploit?"], ["First Discovered", "First Discovered"], ["Remediation", "Steps to Remediate"],
   ],
   "tenable-io": [
     ["IP Address", "asset.display_ipv4_address"], ["DNS Name", "asset.display_fqdn"], ["Vulnerability Name", "definition.name"], ["CVE", "definition.cve"],
-    ["Severity", "definition.severity"], ["Exploit Availability", "definition.exploitability_ease"], ["Vulnerability Age", "vuln_age / age_in_days"], ["Remediation", "definition.solution"],
+    ["Severity", "definition.severity"], ["Exploit Available", "definition.exploitability_ease"], ["Vulnerability Age", "vuln_age / age_in_days"], ["Remediation", "definition.solution"],
   ],
   qualys: [
     ["IP Address", "IP"], ["DNS Name", "FQDN / DNS"], ["Vulnerability Name", "Title"], ["CVE", "CVE ID"],
-    ["Severity", "Severity"], ["Exploit Availability", "Exploitability / Associated Malware"], ["First Discovered", "First Detected"], ["Remediation", "Solution"],
+    ["Severity", "Severity"], ["Exploit Available", "Exploitability / Associated Malware"], ["First Discovered", "First Detected"], ["Remediation", "Solution"],
   ],
   crowdstrike: [
     ["IP Address", "LocalIP"], ["DNS Name", "Hostname"], ["Vulnerability Name", "CVE Description / RecommendedRemediation"], ["CVE", "CVE ID"],
-    ["Severity", "Severity / Critical-High-Medium-Low counts"], ["Exploit Availability", "Exploit status label / Exploits / CISA KEV"], ["First Discovered", "Created Date"], ["Remediation", "Recommended Remediations / RemediationDetail"],
+    ["Severity", "Severity / Critical-High-Medium-Low counts"], ["Exploit Available", "Exploit status label / Exploits / CISA KEV"], ["First Discovered", "Created Date"], ["Remediation", "Recommended Remediations / RemediationDetail"],
   ],
 };
 

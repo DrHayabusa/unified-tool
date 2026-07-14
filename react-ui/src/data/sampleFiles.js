@@ -52,6 +52,14 @@ export async function loadBundledSamples(sourceId, workflow, crowdStrikeVariant 
   }));
 }
 
+export async function loadUnifiedBundledSamples(sourceIds, workflow) {
+  const normalizedWorkflow = workflow === "quarterly-scan" ? "adhoc" : workflow;
+  const sampleGroups = await Promise.all(
+    Array.from(sourceIds ?? []).map((sourceId) => loadBundledSamples(sourceId, normalizedWorkflow, "vulnerability-per-asset")),
+  );
+  return sampleGroups.flat();
+}
+
 function shiftSampleDatesToQuarter(text) {
   const targetMonths = { "04": 3, "05": 6, "06": 9, "07": 12 };
   return text.replace(/2026-(04|05|06|07)-(\d{2})/g, (_match, sourceMonth, dayText) => {
