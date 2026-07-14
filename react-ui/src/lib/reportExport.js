@@ -58,9 +58,123 @@ export async function buildAnalysisWorkbook(analysis) {
   if (analysis.dashboard?.unifiedInsights) await buildUnifiedDashboardSheet(workbook, analysis);
   if (isComparisonWorkflow(analysis)) await buildMonthlySheet(workbook, analysis);
   else await buildAdhocSheet(workbook, analysis);
+  buildCustomerValueSheets(workbook, analysis);
   buildFindingsSheet(workbook, isComparisonWorkflow(analysis) ? analysis.currentFindings : analysis.findings);
   if ((analysis.sourceIds?.length ?? analysis.inputSummary?.sourceCount ?? 0) > 1) buildSourceAuditSheet(workbook, analysis);
   return workbook;
+}
+
+function buildCustomerValueSheets(workbook, analysis) {
+  const insights = analysis.dashboard?.customerValueInsights;
+  if (!insights) return;
+  buildDecisionIntelligenceSheet(workbook, analysis, insights);
+  buildRemediationCampaignSheet(workbook, analysis, insights.remediationCampaigns);
+  if (insights.verification.available) buildRemediationVerificationSheet(workbook, analysis, insights.verification);
+}
+
+function buildDecisionIntelligenceSheet(workbook, analysis, insights) {
+  const sheet = workbook.addWorksheet("Decision Intelligence", { views: [{ state: "frozen", ySplit: 3, showGridLines: false }] });
+  const threat = insights.threatPriority;
+  const quality = insights.dataQuality;
+  prepareSheet(sheet, 12);
+  [16, 25, 20, 18, 15, 18, 20, 18, 18, 16, 16, 18].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+  title(sheet, "Threat Priority and Evidence Quality", analysis.dashboard?.reportRange ?? analysis.reportMonth ?? analysis.reportPeriod ?? "Current report", 12);
+  kpi(sheet, "A4:C7", "THREAT REVIEW QUEUE", threat.reviewQueue, "P1-P4 remains unchanged", COLORS.critical);
+  kpi(sheet, "D4:F7", "CISA KEV", threat.cisaKev, "Known exploited evidence", COLORS.high);
+  kpi(sheet, "G4:I7", "EXPLOIT AVAILABLE", threat.exploitAvailable, "Scanner-provided signal", COLORS.medium);
+  kpi(sheet, "J4:L7", "EPSS >= 50%", threat.epssAbove50, `${threat.epssObserved} with EPSS data`, "0891B2");
+
+  section(sheet, "A9:E9", "Provisional SSVC Triage");
+  writeTable(sheet, 10, 1, ["Decision", "Open Findings"], Object.entries(threat.ssvcCounts), true);
+  section(sheet, "G9:L9", "SSVC Interpretation Boundary");
+  writeTable(sheet, 10, 7, ["Available-Data Rule"], [...threat.ssvcMethodology, threat.contextNotice].map((line) => [line]));
+
+  const queueStart = 17;
+  section(sheet, `A${queueStart}:L${queueStart}`, "Threat-Priority Review Queue");
+  writeTable(
+    sheet,
+    queueStart + 1,
+    1,
+    ["Patch Priority", "Asset", "Service", "Vulnerability", "CVE", "Severity", "Evidence", "Exposure", "Provisional SSVC"],
+    threat.queue.map((row) => [row.priority, row.asset, row.service, row.vulnerability, row.cve || "N/A", row.severity, row.signals.join(" | "), row.exposure, row.ssvcDecision]),
+    true,
+  );
+
+  const qualityStart = queueStart + Math.max(4, threat.queue.length) + 4;
+  section(sheet, `A${qualityStart}:L${qualityStart}`, "Data Quality and Evidence Completeness");
+  kpi(sheet, `A${qualityStart + 1}:C${qualityStart + 4}`, "EVIDENCE COMPLETENESS", `${quality.evidenceCompleteness}%`, "Eight normalized fields", COLORS.low);
+  kpi(sheet, `D${qualityStart + 1}:F${qualityStart + 4}`, "CORE COMPLETE", quality.completeCore, `Of ${quality.totalFindings} findings`, "0891B2");
+  kpi(sheet, `G${qualityStart + 1}:I${qualityStart + 4}`, "DATA GAP TYPES", quality.issues.length, "Missing fields disclosed", COLORS.medium);
+  kpi(sheet, `J${qualityStart + 1}:L${qualityStart + 4}`, "STALE OBSERVATIONS", quality.staleObservations, ">30 days behind report", COLORS.critical);
+  writeTable(
+    sheet,
+    qualityStart + 6,
+    1,
+    ["Normalized Field", "Present", "Missing", "Coverage %"],
+    quality.completeness.map((row) => [row.label, row.present, row.missing, row.percent]),
+  );
+}
+
+function buildRemediationCampaignSheet(workbook, analysis, data) {
+  const sheet = workbook.addWorksheet("Remediation Campaigns", { views: [{ state: "frozen", ySplit: 9, showGridLines: false }] });
+  prepareSheet(sheet, 12);
+  [14, 32, 22, 18, 15, 15, 16, 16, 22, 45, 45, 20].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+  title(sheet, "Remediation Campaign Dashboard", `${analysis.sourceLabel} | Grouped by vulnerability and remediation action`, 12);
+  kpi(sheet, "A4:C7", "CAMPAIGNS", data.campaignCount, "Distinct action groups", COLORS.teal);
+  kpi(sheet, "D4:F7", "MULTI-ASSET", data.multiAssetCampaigns, "One action, multiple assets", "0284C7");
+  kpi(sheet, "G4:I7", "ACTION READY", data.actionReady, "Remediation text available", COLORS.low);
+  kpi(sheet, "J4:L7", "REFERENCE READY", data.referenceReady, "KB or advisory available", COLORS.high);
+  section(sheet, "A9:L9", "Prioritized Remediation Campaign Queue");
+  writeTable(
+    sheet,
+    10,
+    1,
+    ["Priority", "Campaign", "CVE", "Findings", "Assets", "P1 + P2", "Exploit Available", "Sources", "Remediation Action", "References"],
+    data.campaigns.map((campaign) => [
+      campaign.primaryPriority,
+      campaign.title,
+      campaign.cve || "N/A",
+      campaign.findingCount,
+      campaign.assets.length,
+      campaign.immediatePatch,
+      campaign.exploitAvailable,
+      campaign.sources.join(" | "),
+      campaign.action || "Not provided by source export",
+      campaign.references.join(" | ") || "Not provided by source export",
+    ]),
+    true,
+  );
+}
+
+function buildRemediationVerificationSheet(workbook, analysis, verification) {
+  const sheet = workbook.addWorksheet("Remediation Verification", { views: [{ state: "frozen", ySplit: 9, showGridLines: false }] });
+  prepareSheet(sheet, 10);
+  [14, 28, 24, 20, 14, 14, 16, 16, 18, 18].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
+  title(sheet, "Scan-to-Scan Remediation Verification", `${verification.previousPeriod} to ${verification.currentPeriod} | Scanner evidence, not patch-installation proof`, 10);
+  kpi(sheet, "A4:B7", "PERSISTING", verification.persistent, `${verification.persistenceRate}% of previous open`, COLORS.high);
+  kpi(sheet, "C4:D7", "NEW", verification.newFindings, `Added in ${verification.currentPeriod}`, "0284C7");
+  kpi(sheet, "E4:F7", "REAPPEARED", verification.reappeared, "Seen before an absence", COLORS.critical);
+  kpi(sheet, "G4:H7", "NOT OBSERVED", verification.noLongerObserved, "Requires closure evidence", COLORS.low);
+  kpi(sheet, "I4:J7", "RECONCILED", verification.reconciled ? "YES" : "NO", `${verification.previousTotal} previous to ${verification.currentTotal} current`, verification.reconciled ? COLORS.low : COLORS.critical);
+  section(sheet, "A9:J9", "Closure Evidence Candidates");
+  writeTable(
+    sheet,
+    10,
+    1,
+    ["Priority", "Asset", "Service", "Vulnerability", "CVE", "Severity", "Count", "Exposure"],
+    verification.closureCandidates.map((row) => [row.priority, row.asset, row.service, row.vulnerability, row.cve || "N/A", row.severity, row.count, row.exposure]),
+    true,
+  );
+  const reappearedStart = 12 + Math.max(verification.closureCandidates.length, 3);
+  section(sheet, `A${reappearedStart}:J${reappearedStart}`, "Reappeared Findings");
+  writeTable(
+    sheet,
+    reappearedStart + 1,
+    1,
+    ["Priority", "Asset", "Service", "Vulnerability", "CVE", "Severity", "Count", "Exposure"],
+    verification.reappearedFindings.map((row) => [row.priority, row.asset, row.service, row.vulnerability, row.cve || "N/A", row.severity, row.count, row.exposure]),
+    true,
+  );
 }
 
 async function buildUnifiedDashboardSheet(workbook, analysis) {
