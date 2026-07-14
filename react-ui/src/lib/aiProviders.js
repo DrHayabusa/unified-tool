@@ -1,5 +1,19 @@
 export const AI_PROVIDERS = Object.freeze([
   {
+    id: "nvidia-nim",
+    name: "NVIDIA NIM - Nemotron 3 Ultra",
+    helper: "Direct NVIDIA Build API access using a session-only key, base URL, and model route.",
+    model: "nvidia/nemotron-3-ultra-550b-a55b",
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    type: "openai",
+    service: "nvidia",
+    badge: "Direct NVIDIA",
+    keyLabel: "NVIDIA API Key",
+    keyPlaceholder: "nvapi-...",
+    keyUrl: "https://build.nvidia.com/settings/api-keys",
+    requiresKey: true,
+  },
+  {
     id: "openrouter-nemotron-ultra",
     name: "OpenRouter - Nemotron 3 Ultra",
     helper: "Direct cloud access to NVIDIA Nemotron 3 Ultra with a free model route and browser-compatible API.",
@@ -25,21 +39,6 @@ export const AI_PROVIDERS = Object.freeze([
     keyLabel: "Groq API Key",
     keyPlaceholder: "gsk_...",
     keyUrl: "https://console.groq.com/keys",
-    requiresKey: true,
-  },
-  {
-    id: "nvidia-nim-proxy",
-    name: "NVIDIA NIM - MVA Cloud Proxy",
-    helper: "Uses your NVIDIA key through an organization-hosted HTTPS MVA API to avoid browser CORS restrictions.",
-    model: "nvidia/nemotron-3-ultra-550b-a55b",
-    baseUrl: "",
-    providerBaseUrl: "https://integrate.api.nvidia.com/v1",
-    type: "nvidia-proxy",
-    service: "nvidia",
-    badge: "Enterprise NVIDIA",
-    keyLabel: "NVIDIA API Key",
-    keyPlaceholder: "nvapi-...",
-    keyUrl: "https://build.nvidia.com/settings/api-keys",
     requiresKey: true,
   },
   {
@@ -79,9 +78,7 @@ export function providerById(providerId) {
 export function validateProviderSettings({ provider, baseUrl, apiKey, model }) {
   if (provider.type === "template") return "";
   if (!String(baseUrl || "").trim()) {
-    return provider.type === "nvidia-proxy"
-      ? "Enter your deployed HTTPS MVA Cloud API URL. The NVIDIA endpoint cannot be called directly from this browser."
-      : "Enter the cloud provider base URL.";
+    return "Enter the cloud provider base URL.";
   }
   if (!/^https:\/\//i.test(String(baseUrl).trim()) && !isLoopbackUrl(baseUrl)) {
     return "Use an HTTPS cloud URL. HTTP is accepted only for localhost development.";

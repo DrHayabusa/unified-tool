@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { CheckCircle2, CloudUpload, FileSearch, FileSpreadsheet, LockKeyhole, Table2, Upload } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CloudUpload, FileSearch, FileSpreadsheet, FileText, LockKeyhole, Table2, Upload } from "lucide-react";
 import { loadBundledSamples } from "../data/sampleFiles.js";
 import { downloadAnalysisWorkbook, downloadNormalizedCsv } from "../lib/reportExport.js";
+import { buildTemplateMarkdown, downloadRemediationPdf } from "../lib/pdfReport.js";
 import { isSupportedUploadFile } from "../lib/uploadFiles.js";
 
-export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
+export function UploadPanel({ selectedSource, analysis, onAnalyze, onBackToDashboard, workflow = "adhoc" }) {
   const [file, setFile] = useState(null);
   const [sampleVariant, setSampleVariant] = useState("vulnerability-per-asset");
   const [status, setStatus] = useState({ state: "idle", message: "" });
+  const quarterly = workflow === "quarterly-scan";
+  const workflowLabel = quarterly ? "Quarterly" : "Adhoc";
 
   const selectFile = (nextFile) => {
     if (!nextFile) return;
@@ -45,10 +48,10 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
 
   const downloadExcel = async () => {
     if (!analysis || status.state === "loading") return;
-    setStatus({ state: "loading", message: "Building the Adhoc Excel report..." });
+    setStatus({ state: "loading", message: `Building the ${workflowLabel} Excel report...` });
     try {
       await downloadAnalysisWorkbook(analysis);
-      setStatus({ state: "success", message: "Adhoc Excel report generated and downloaded." });
+      setStatus({ state: "success", message: `${workflowLabel} Excel report generated and downloaded.` });
     } catch (error) {
       setStatus({ state: "error", message: error.message || "Excel export failed." });
     }
@@ -64,17 +67,38 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
     }
   };
 
+  const downloadPdf = async () => {
+    if (!analysis || status.state === "loading") return;
+    const targetMonth = analysis.reportPeriod || analysis.reportMonth || `${workflowLabel} Report`;
+    setStatus({ state: "loading", message: `Building the ${workflowLabel} Remediation Guide PDF...` });
+    try {
+      const markdown = buildTemplateMarkdown({ analysis, targetMonth });
+      await downloadRemediationPdf({ markdown, sourceLabel: analysis.sourceLabel, targetMonth, workflow: analysis.workflow || workflow });
+      setStatus({ state: "success", message: `${workflowLabel} Remediation Guide PDF generated and downloaded.` });
+    } catch (error) {
+      setStatus({ state: "error", message: error.message || "PDF export failed." });
+    }
+  };
+
   return (
     <section className="cyber-panel rounded-[1.75rem] p-5">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="mini-label">Upload Export File</p>
-          <h2 className="mt-1 text-2xl font-black text-white">Adhoc file intake</h2>
+          <p className="mini-label">{quarterly ? "Quarterly Scan Intake" : "Upload Export File"}</p>
+          <h2 className="mt-1 text-2xl font-black text-white">{quarterly ? "Single-export 3-month analysis" : "Adhoc file intake"}</h2>
           <p className="mt-1 text-sm font-semibold text-slate-400">
-            Analyze one {selectedSource.name} CSV or XLSX with automatic export-type detection.
+            {quarterly
+              ? `Analyze one ${selectedSource.name} CSV or XLSX and chart findings discovered during its latest three months.`
+              : `Analyze one ${selectedSource.name} CSV or XLSX with automatic export-type detection.`}
           </p>
         </div>
-        <div className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-sm font-bold text-cyan-200">CSV/XLSX up to 500MB</div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={onBackToDashboard} className="ghost-button flex items-center gap-2 py-2.5">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </button>
+          <div className="rounded-full border border-red-300/25 bg-red-400/[0.07] px-4 py-2 text-sm font-bold text-red-200">CSV/XLSX up to 500MB</div>
+        </div>
       </div>
 
       <label
@@ -121,7 +145,7 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
           className="neon-button flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"
         >
           {status.state === "loading" ? <FileSearch className="h-4 w-4 animate-pulse" /> : <Upload className="h-4 w-4" />}
-          {status.state === "loading" ? "Working..." : analysis ? "Re-analyze Selected Export" : "Analyze & Generate Dashboard"}
+          {status.state === "loading" ? "Working..." : analysis ? "Re-analyze Selected Export" : quarterly ? "Analyze 3-Month Scan" : "Analyze & Generate Dashboard"}
         </button>
         <div
           className={`rounded-xl border px-4 py-3 text-xs font-bold ${
@@ -137,7 +161,7 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
       </div>
 
       {analysis && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
           <button type="button" onClick={downloadExcel} disabled={status.state === "loading"} className="ghost-button flex items-center justify-center gap-2 disabled:cursor-wait disabled:opacity-45">
             <FileSpreadsheet className="h-4 w-4 text-emerald-300" />
             Download Excel Report
@@ -145,6 +169,10 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
           <button type="button" onClick={downloadCsv} disabled={status.state === "loading"} className="ghost-button flex items-center justify-center gap-2 disabled:cursor-wait disabled:opacity-45">
             <Table2 className="h-4 w-4 text-cyan-300" />
             Download Normalized CSV
+          </button>
+          <button type="button" onClick={downloadPdf} disabled={status.state === "loading"} className="neon-button flex items-center justify-center gap-2 disabled:cursor-wait disabled:opacity-45">
+            <FileText className="h-4 w-4" />
+            Download PDF Report
           </button>
         </div>
       )}

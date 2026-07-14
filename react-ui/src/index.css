@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6,7 +6,7 @@
 
 :root {
   color-scheme: dark;
-  background: #020617;
+  background: #050506;
 }
 
 * {
@@ -19,14 +19,14 @@ html {
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 76% 8%, rgba(16, 185, 129, 0.18), transparent 28rem),
-    radial-gradient(circle at 16% 16%, rgba(14, 165, 233, 0.16), transparent 24rem),
-    linear-gradient(135deg, #020617 0%, #06110f 46%, #020617 100%);
-  color: #e5f4ef;
-  font-family: "Space Grotesk", Inter, ui-sans-serif, system-ui;
+    radial-gradient(circle at 82% 4%, rgba(185, 28, 28, 0.2), transparent 30rem),
+    radial-gradient(circle at 12% 24%, rgba(127, 29, 29, 0.14), transparent 26rem),
+    linear-gradient(145deg, #050506 0%, #0b090a 46%, #040405 100%);
+  color: #f4f4f5;
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui;
 }
 
 body::before {
@@ -35,9 +35,9 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(115deg, transparent 0 24%, rgba(34, 211, 238, 0.12) 25%, transparent 26% 100%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 76px),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 76px);
+    linear-gradient(115deg, transparent 0 24%, rgba(239, 68, 68, 0.08) 25%, transparent 26% 100%),
+    repeating-linear-gradient(90deg, rgba(239, 68, 68, 0.026) 0 1px, transparent 1px 76px),
+    repeating-linear-gradient(0deg, rgba(239, 68, 68, 0.022) 0 1px, transparent 1px 76px);
   mask-image: radial-gradient(circle at 54% 16%, black, transparent 76%);
 }
 
@@ -53,17 +53,17 @@ select {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(20, 184, 166, 0.4);
+  background: rgba(220, 38, 38, 0.48);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(2, 6, 23, 0.7);
+  background: rgba(5, 5, 6, 0.8);
 }
 
 @layer components {
   .cyber-panel {
-    @apply border border-white/10 bg-slate-950/70 shadow-cyber backdrop-blur-xl;
+    @apply border border-red-500/15 bg-slate-950/80 shadow-cyber backdrop-blur-xl;
   }
 
   .cyber-card {
@@ -71,19 +71,19 @@ select {
   }
 
   .cyber-card-hover {
-    @apply hover:-translate-y-1 hover:border-emerald-400/45 hover:shadow-glow;
+    @apply hover:-translate-y-1 hover:border-red-400/45 hover:shadow-glow;
   }
 
   .mini-label {
-    @apply font-mono text-[0.68rem] font-bold uppercase tracking-[0.18em] text-slate-400;
+    @apply font-mono text-[0.68rem] font-bold uppercase tracking-[0.18em] text-red-300;
   }
 
   .neon-button {
-    @apply rounded-xl border border-emerald-300/30 bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3 font-bold text-slate-950 shadow-glow transition hover:-translate-y-0.5 hover:from-emerald-300 hover:to-cyan-300;
+    @apply rounded-xl border border-red-300/30 bg-gradient-to-r from-red-600 to-rose-700 px-4 py-3 font-bold text-white shadow-glow transition hover:-translate-y-0.5 hover:from-red-500 hover:to-rose-600;
   }
 
   .ghost-button {
-    @apply rounded-xl border border-white/15 bg-white/5 px-4 py-3 font-bold text-slate-200 transition hover:-translate-y-0.5 hover:border-cyan-300/40 hover:bg-cyan-300/10;
+    @apply rounded-xl border border-white/15 bg-white/5 px-4 py-3 font-bold text-slate-200 transition hover:-translate-y-0.5 hover:border-red-300/40 hover:bg-red-400/10;
   }
 }
 

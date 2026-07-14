@@ -11,13 +11,13 @@ import {
 
 test("provider catalog exposes working cloud, enterprise, and local paths", () => {
   assert.deepEqual(AI_PROVIDERS.map((provider) => provider.id), [
+    "nvidia-nim",
     "openrouter-nemotron-ultra",
     "groq-gpt-oss-120b",
-    "nvidia-nim-proxy",
     "mva-cloud-api",
     "template-pdf",
   ]);
-  assert.equal(providerById("missing").id, "openrouter-nemotron-ultra");
+  assert.equal(providerById("missing").id, "nvidia-nim");
 });
 
 test("OpenRouter request includes attribution and never puts the key in the body", () => {
@@ -45,9 +45,12 @@ test("provider validation blocks missing keys and direct HTTP cloud URLs", () =>
   assert.equal(validateProviderSettings({ provider: groq, baseUrl: groq.baseUrl, apiKey: "key", model: groq.model }), "");
 });
 
-test("NVIDIA route explicitly requires an MVA Cloud API URL", () => {
-  const nvidia = providerById("nvidia-nim-proxy");
-  assert.match(validateProviderSettings({ provider: nvidia, baseUrl: "", apiKey: "nvapi-test", model: nvidia.model }), /MVA Cloud API URL/);
+test("NVIDIA route uses only a key, base URL, and model", () => {
+  const nvidia = providerById("nvidia-nim");
+  assert.equal(validateProviderSettings({ provider: nvidia, baseUrl: nvidia.baseUrl, apiKey: "nvapi-test", model: nvidia.model }), "");
+  assert.match(validateProviderSettings({ provider: nvidia, baseUrl: nvidia.baseUrl, apiKey: "", model: nvidia.model }), /NVIDIA API Key/);
+  const request = buildOpenAiRequest({ provider: nvidia, baseUrl: nvidia.baseUrl, apiKey: "nvapi-test", model: nvidia.model, messages: [] });
+  assert.equal(request.url, "https://integrate.api.nvidia.com/v1/chat/completions");
 });
 
 test("OpenAI-compatible caller parses success and provider errors", async () => {

@@ -18,8 +18,9 @@ const adhocSamples = {
 };
 
 export async function loadBundledSamples(sourceId, workflow, crowdStrikeVariant = "vulnerability-per-asset") {
-  let paths = workflow === "monthly" ? monthlySamples[sourceId] : [adhocSamples[sourceId]];
-  if (workflow === "monthly" && sourceId === "crowdstrike") {
+  const comparisonWorkflow = workflow === "monthly" || workflow === "quarterly";
+  let paths = comparisonWorkflow ? monthlySamples[sourceId] : [adhocSamples[sourceId]];
+  if (comparisonWorkflow && sourceId === "crowdstrike") {
     paths = crowdStrikeMonthlySamples[crowdStrikeVariant] ?? crowdStrikeMonthlySamples["vulnerability-per-asset"];
   }
   if (workflow === "adhoc" && sourceId === "crowdstrike") {
@@ -38,9 +39,25 @@ export async function loadBundledSamples(sourceId, workflow, crowdStrikeVariant 
     if (!response.ok) throw new Error(`Sample download failed with HTTP ${response.status}: ${path}`);
     const blob = await response.blob();
     const sourceName = path.split("/").at(-1);
-    const fileName = workflow === "monthly" && sourceId === "crowdstrike" && crowdStrikeVariant === "vulnerability-per-asset"
+    let fileName = comparisonWorkflow && sourceId === "crowdstrike" && crowdStrikeVariant === "vulnerability-per-asset"
       ? sourceName.replace("crowdstrike_vulnerabilities_", "crowdstrike_vulnerability_per_asset_")
       : sourceName;
-    return new File([blob], fileName, { type: "text/csv" });
+    if (workflow !== "quarterly") return new File([blob], fileName, { type: "text/csv" });
+
+    const index = paths.indexOf(path);
+    const quarter = index + 1;
+    const text = shiftSampleDatesToQuarter(await blob.text());
+    fileName = fileName.replace(/(?:april|may|june|july)_2026/i, `q${quarter}_2026`);
+    return new File([text], fileName, { type: "text/csv" });
   }));
+}
+
+function shiftSampleDatesToQuarter(text) {
+  const targetMonths = { "04": 3, "05": 6, "06": 9, "07": 12 };
+  return text.replace(/2026-(04|05|06|07)-(\d{2})/g, (_match, sourceMonth, dayText) => {
+    const month = targetMonths[sourceMonth];
+    const maxDay = new Date(Date.UTC(2026, month, 0)).getUTCDate();
+    const day = Math.min(Number(dayText), maxDay);
+    return `2026-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  });
 }

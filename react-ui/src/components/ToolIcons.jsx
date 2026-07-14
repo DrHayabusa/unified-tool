@@ -68,13 +68,16 @@ export function SourceToolIcon({ id, accent = "emerald" }) {
   );
 }
 
-export function MvaLogo() {
+export function MvaLogo({ className = "h-20 w-20" }) {
   return (
-    <svg viewBox="0 0 84 84" className="h-24 w-24 text-emerald-400 drop-shadow-[0_0_26px_rgba(16,185,129,.65)]" aria-hidden="true">
-      <path d="M42 5 73 17v24c0 19-12.4 31.2-31 39C23.4 72.2 11 60 11 41V17L42 5Z" fill="rgba(16,185,129,.12)" stroke="currentColor" strokeWidth="3" />
-      <circle cx="42" cy="39" r="13" fill="rgba(16,185,129,.18)" stroke="currentColor" strokeWidth="3" />
-      <path d="M29 39H16M68 39H55M42 26V14M42 64V52M31 30l-9-9M53 30l9-9M31 48l-9 9M53 48l9 9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M34 36c0-4.4 3.6-8 8-8s8 3.6 8 8v9c0 4.4-3.6 8-8 8s-8-3.6-8-8v-9Z" fill="none" stroke="currentColor" strokeWidth="2.8" />
+    <svg viewBox="0 0 88 88" className={className} role="img" aria-label="MVA shield">
+      <path d="M44 5 76 17v25c0 20-12.8 33.4-32 41C24.8 75.4 12 62 12 42V17L44 5Z" fill="#0b0b0d" stroke="#ef4444" strokeWidth="2.5" />
+      <path d="M44 12 69 21v20c0 15.4-9.4 26.3-25 33-15.6-6.7-25-17.6-25-33V21l25-9Z" fill="#181113" stroke="#7f1d1d" strokeWidth="1" />
+      <path d="M19 21 44 12 69 21" fill="none" stroke="#fb7185" strokeWidth="2" />
+      <path d="M25 29h6M57 29h6M25 59h6M57 59h6" stroke="#7f1d1d" strokeWidth="2" />
+      <text x="44" y="51" textAnchor="middle" fill="#fff1f2" fontFamily="IBM Plex Mono, monospace" fontSize="17" fontWeight="700" letterSpacing="1">MVA</text>
+      <path d="M30 57h28" stroke="#ef4444" strokeWidth="2.5" />
+      <path d="m56 25 7-7" stroke="#ef4444" strokeWidth="3" />
     </svg>
   );
 }
