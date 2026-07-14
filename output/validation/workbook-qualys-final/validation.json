@@ -1,0 +1,30 @@
+{
+  "input": "output/excel/mva_qualys_final_team_sample.xlsx",
+  "outputDir": "output/validation/workbook-qualys-final",
+  "status": "PASS",
+  "checks": {
+    "xlsx_reopens": true,
+    "required_sheets_present": true,
+    "formula_errors_absent": true,
+    "obsolete_lane_absent": true
+  },
+  "sheets": [
+    {
+      "name": "Monthly Report",
+      "rows": 36,
+      "columns": 12,
+      "mergedRanges": 35,
+      "frozenAt": "A4"
+    },
+    {
+      "name": "Report Data",
+      "rows": 126,
+      "columns": 17,
+      "mergedRanges": 0,
+      "frozenAt": "C2"
+    }
+  ],
+  "missingSheets": [],
+  "formulaErrors": [],
+  "obsoleteLaneMatches": []
+}
