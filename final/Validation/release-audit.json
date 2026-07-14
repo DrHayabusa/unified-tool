@@ -1,0 +1,187 @@
+{
+  "status": "PASS",
+  "expected_counts": {
+    "workbooks": 4,
+    "pdfs": 4,
+    "sample_csvs": 21,
+    "screenshots": 19
+  },
+  "actual_counts": {
+    "workbooks": 4,
+    "pdfs": 4,
+    "sample_csvs": 21,
+    "screenshots": 19
+  },
+  "workbooks": [
+    {
+      "file": "MVA_CrowdStrike_Final_Report.xlsx",
+      "sheets": [
+        "Executive Dashboard",
+        "Monthly Dashboard",
+        "Adhoc Dashboard"
+      ],
+      "lane_matches": 0,
+      "formula_errors": 0
+    },
+    {
+      "file": "MVA_Qualys_Final_Report.xlsx",
+      "sheets": [
+        "Monthly Report",
+        "Report Data"
+      ],
+      "lane_matches": 0,
+      "formula_errors": 0
+    },
+    {
+      "file": "MVA_Tenable_IO_Final_Report.xlsx",
+      "sheets": [
+        "Executive Dashboard",
+        "Monthly Dashboard",
+        "Adhoc Dashboard"
+      ],
+      "lane_matches": 0,
+      "formula_errors": 0
+    },
+    {
+      "file": "MVA_Tenable_SC_Final_Report.xlsx",
+      "sheets": [
+        "Executive Dashboard",
+        "Monthly Dashboard",
+        "Adhoc Dashboard"
+      ],
+      "lane_matches": 0,
+      "formula_errors": 0
+    }
+  ],
+  "pdfs": [
+    {
+      "file": "MVA_CrowdStrike_Remediation_Guide.pdf",
+      "pages": 11,
+      "clickable_links": 15
+    },
+    {
+      "file": "MVA_Qualys_Remediation_Guide.pdf",
+      "pages": 13,
+      "clickable_links": 11
+    },
+    {
+      "file": "MVA_Tenable_IO_Remediation_Guide.pdf",
+      "pages": 13,
+      "clickable_links": 11
+    },
+    {
+      "file": "MVA_Tenable_SC_Remediation_Guide.pdf",
+      "pages": 13,
+      "clickable_links": 11
+    }
+  ],
+  "sample_csvs": [
+    {
+      "file": "Sample Data/CrowdStrike/Adhoc/crowdstrike_remediation_per_assets_july_2026_100plus.csv",
+      "rows": 100,
+      "columns": 39
+    },
+    {
+      "file": "Sample Data/CrowdStrike/Adhoc/crowdstrike_vulnerability_per_asset_july_2026_100plus.csv",
+      "rows": 120,
+      "columns": 76
+    },
+    {
+      "file": "Sample Data/CrowdStrike/Monthly/crowdstrike_vulnerabilities_april_2026_100plus.csv",
+      "rows": 110,
+      "columns": 76
+    },
+    {
+      "file": "Sample Data/CrowdStrike/Monthly/crowdstrike_vulnerabilities_july_2026_100plus.csv",
+      "rows": 130,
+      "columns": 76
+    },
+    {
+      "file": "Sample Data/CrowdStrike/Monthly/crowdstrike_vulnerabilities_june_2026_100plus.csv",
+      "rows": 135,
+      "columns": 76
+    },
+    {
+      "file": "Sample Data/CrowdStrike/Monthly/crowdstrike_vulnerabilities_may_2026_100plus.csv",
+      "rows": 130,
+      "columns": 76
+    },
+    {
+      "file": "Sample Data/Qualys/Adhoc/qualys_adhoc_july_2026_100plus.csv",
+      "rows": 125,
+      "columns": 30
+    },
+    {
+      "file": "Sample Data/Qualys/Monthly/qualys_monthly_april_2026_100plus.csv",
+      "rows": 100,
+      "columns": 42
+    },
+    {
+      "file": "Sample Data/Qualys/Monthly/qualys_monthly_july_2026_100plus.csv",
+      "rows": 125,
+      "columns": 42
+    },
+    {
+      "file": "Sample Data/Qualys/Monthly/qualys_monthly_june_2026_100plus.csv",
+      "rows": 120,
+      "columns": 42
+    },
+    {
+      "file": "Sample Data/Qualys/Monthly/qualys_monthly_may_2026_100plus.csv",
+      "rows": 110,
+      "columns": 42
+    },
+    {
+      "file": "Sample Data/Tenable IO/Adhoc/tenable_io_adhoc_july_2026_100plus.csv",
+      "rows": 125,
+      "columns": 109
+    },
+    {
+      "file": "Sample Data/Tenable IO/Monthly/tenable_io_april_2026_100plus.csv",
+      "rows": 100,
+      "columns": 109
+    },
+    {
+      "file": "Sample Data/Tenable IO/Monthly/tenable_io_july_2026_100plus.csv",
+      "rows": 125,
+      "columns": 109
+    },
+    {
+      "file": "Sample Data/Tenable IO/Monthly/tenable_io_june_2026_100plus.csv",
+      "rows": 120,
+      "columns": 109
+    },
+    {
+      "file": "Sample Data/Tenable IO/Monthly/tenable_io_may_2026_100plus.csv",
+      "rows": 110,
+      "columns": 109
+    },
+    {
+      "file": "Sample Data/Tenable SC/Adhoc/tenable_sc_adhoc_july_2026_100plus.csv",
+      "rows": 125,
+      "columns": 56
+    },
+    {
+      "file": "Sample Data/Tenable SC/Monthly/tenable_sc_april_2026_100plus.csv",
+      "rows": 100,
+      "columns": 56
+    },
+    {
+      "file": "Sample Data/Tenable SC/Monthly/tenable_sc_july_2026_100plus.csv",
+      "rows": 125,
+      "columns": 56
+    },
+    {
+      "file": "Sample Data/Tenable SC/Monthly/tenable_sc_june_2026_100plus.csv",
+      "rows": 120,
+      "columns": 56
+    },
+    {
+      "file": "Sample Data/Tenable SC/Monthly/tenable_sc_may_2026_100plus.csv",
+      "rows": 110,
+      "columns": 56
+    }
+  ],
+  "api_key_leaks": [],
+  "errors": []
+}
