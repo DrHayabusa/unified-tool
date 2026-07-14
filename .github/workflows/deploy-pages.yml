@@ -37,6 +37,7 @@ jobs:
         working-directory: react-ui
         env:
           GITHUB_PAGES_BASE: /unified-tool/
+          VITE_NVIDIA_RELAY_URL: ${{ vars.MVA_NVIDIA_RELAY_URL }}
         run: npm run build
 
       - name: Upload Pages artifact

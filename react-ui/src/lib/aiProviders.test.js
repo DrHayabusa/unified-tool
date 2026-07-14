@@ -5,6 +5,8 @@ import {
   buildOpenAiRequest,
   callOpenAiCompatible,
   completionText,
+  isHostedNvidiaUrl,
+  parseEventStreamText,
   providerById,
   validateProviderSettings,
 } from "./aiProviders.js";
@@ -45,12 +47,15 @@ test("provider validation blocks missing keys and direct HTTP cloud URLs", () =>
   assert.equal(validateProviderSettings({ provider: groq, baseUrl: groq.baseUrl, apiKey: "key", model: groq.model }), "");
 });
 
-test("NVIDIA route uses only a key, base URL, and model", () => {
+test("NVIDIA route requires a CORS-enabled MVA relay", () => {
   const nvidia = providerById("nvidia-nim");
-  assert.equal(validateProviderSettings({ provider: nvidia, baseUrl: nvidia.baseUrl, apiKey: "nvapi-test", model: nvidia.model }), "");
-  assert.match(validateProviderSettings({ provider: nvidia, baseUrl: nvidia.baseUrl, apiKey: "", model: nvidia.model }), /NVIDIA API Key/);
-  const request = buildOpenAiRequest({ provider: nvidia, baseUrl: nvidia.baseUrl, apiKey: "nvapi-test", model: nvidia.model, messages: [] });
-  assert.equal(request.url, "https://integrate.api.nvidia.com/v1/chat/completions");
+  const relayUrl = "https://mva-relay.example/v1";
+  assert.equal(validateProviderSettings({ provider: nvidia, baseUrl: relayUrl, apiKey: "nvapi-test", model: nvidia.model }), "");
+  assert.match(validateProviderSettings({ provider: nvidia, baseUrl: relayUrl, apiKey: "", model: nvidia.model }), /NVIDIA API Key/);
+  assert.match(validateProviderSettings({ provider: nvidia, baseUrl: "https://integrate.api.nvidia.com/v1", apiKey: "nvapi-test", model: nvidia.model }), /blocks requests from GitHub Pages/);
+  assert.equal(isHostedNvidiaUrl("https://integrate.api.nvidia.com/v1"), true);
+  const request = buildOpenAiRequest({ provider: nvidia, baseUrl: relayUrl, apiKey: "nvapi-test", model: nvidia.model, messages: [] });
+  assert.equal(request.url, "https://mva-relay.example/v1/chat/completions");
 });
 
 test("OpenAI-compatible caller parses success and provider errors", async () => {
@@ -83,4 +88,15 @@ test("completion text handles reasoning-only compatible responses", () => {
   const payload = { choices: [{ message: { reasoning_content: "MVA READY" } }] };
   assert.equal(completionText(payload), "");
   assert.equal(completionText(payload, { allowReasoning: true }), "MVA READY");
+});
+
+test("NVIDIA event streams are assembled into one completion", () => {
+  const payload = parseEventStreamText([
+    'data: {"choices":[{"delta":{"reasoning_content":"checking "}}]}',
+    'data: {"choices":[{"delta":{"content":"MVA "}}]}',
+    'data: {"choices":[{"delta":{"content":"READY"}}]}',
+    "data: [DONE]",
+  ].join("\n"));
+  assert.equal(completionText(payload), "MVA READY");
+  assert.equal(payload.choices[0].message.reasoning_content, "checking ");
 });

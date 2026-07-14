@@ -23,9 +23,9 @@ export function AiReportBuilder({ analysis, selectedMonth, onMonthChange, monthO
       setConnectionState({ status: "error", message: errorMessage });
       return;
     }
-    setConnectionState({ status: "testing", message: "Testing NVIDIA NIM directly..." });
+    setConnectionState({ status: "testing", message: "Testing NVIDIA NIM through the secure relay..." });
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 45_000);
+    const timeout = window.setTimeout(() => controller.abort(), 600_000);
     try {
       const payload = await callOpenAiCompatible({
         provider,
@@ -53,7 +53,7 @@ export function AiReportBuilder({ analysis, selectedMonth, onMonthChange, monthO
     }
     setReportState({ status: "testing", message: `Generating the ${targetPeriod} Remediation Guide with NVIDIA...` });
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 180_000);
+    const timeout = window.setTimeout(() => controller.abort(), 600_000);
     try {
       const payload = await callOpenAiCompatible({
         provider,
@@ -104,13 +104,13 @@ export function AiReportBuilder({ analysis, selectedMonth, onMonthChange, monthO
 
       <div className="space-y-4">
         <label className="block"><span className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-400"><KeyRound className="h-4 w-4" />NVIDIA API Key (session only)</span><input type="password" value={sessionApiKey} onChange={(event) => setSessionApiKey(event.target.value)} placeholder="nvapi-..." autoComplete="off" spellCheck="false" className="w-full rounded-xl border border-white/10 bg-black/35 px-4 py-3 font-mono text-xs font-bold text-slate-100 outline-none focus:border-red-300/40" /></label>
-        <label className="block"><span className="mb-2 block text-sm font-bold text-slate-400">NVIDIA Base URL</span><input value={providerBaseUrl} onChange={(event) => setProviderBaseUrl(event.target.value)} inputMode="url" spellCheck="false" className="w-full rounded-xl border border-white/10 bg-black/35 px-4 py-3 font-mono text-xs font-bold text-slate-100 outline-none focus:border-red-300/40" /></label>
+        <label className="block"><span className="mb-2 block text-sm font-bold text-slate-400">MVA NVIDIA Relay URL</span><input value={providerBaseUrl} onChange={(event) => setProviderBaseUrl(event.target.value)} placeholder="https://your-relay.example/v1" inputMode="url" spellCheck="false" className="w-full rounded-xl border border-white/10 bg-black/35 px-4 py-3 font-mono text-xs font-bold text-slate-100 outline-none focus:border-red-300/40" /></label>
         <label className="block"><span className="mb-2 block text-sm font-bold text-slate-400">Model Route</span><input value={providerModel} onChange={(event) => setProviderModel(event.target.value)} spellCheck="false" className="w-full rounded-xl border border-white/10 bg-black/35 px-4 py-3 font-mono text-xs font-bold text-slate-100 outline-none focus:border-red-300/40" /></label>
 
         <label className="block"><span className="mb-2 block text-sm font-bold text-slate-400">PDF Target {periodName}</span><div className="relative"><select value={targetPeriod} onChange={(event) => onMonthChange?.(event.target.value)} disabled={!hasPeriods} className="w-full appearance-none rounded-xl border border-white/10 bg-black/35 px-4 py-3 pr-11 font-bold text-slate-100 outline-none disabled:opacity-50">{hasPeriods ? monthOptions.map((period) => <option key={period}>{period}</option>) : <option value="">No {periodName.toLowerCase()} detected yet</option>}</select><ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" /></div></label>
 
         {!compact && <p className="flex items-start gap-2 text-xs font-semibold leading-5 text-slate-500"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />Scanner parsing, field mapping, priority scoring, comparisons, and dashboards stay local. Only the selected report summary and prioritized normalized findings are sent to NVIDIA when Generate AI PDF is clicked.</p>}
-        <div className="rounded-xl border border-white/10 bg-white/[0.025] p-3"><p className="flex items-start gap-2 text-xs font-semibold leading-5 text-slate-400"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />The browser connects directly to NVIDIA using only these session settings.</p></div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.025] p-3"><p className="flex items-start gap-2 text-xs font-semibold leading-5 text-slate-400"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />The browser sends the session-only key to the MVA HTTPS relay; the relay calls NVIDIA server-to-server. The key is not stored by this application.</p></div>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <button type="button" onClick={testConnectivity} disabled={busy} className="ghost-button flex items-center justify-center gap-2 disabled:opacity-50"><Wifi className="h-4 w-4" />Test NVIDIA</button>
@@ -140,6 +140,6 @@ function providerError(error) {
   if (error?.status === 401 || /401|unauthorized|invalid api key/i.test(message)) return "Unauthorized: generate a fresh NVIDIA key and paste the complete value for this session.";
   if (error?.status === 403 || /forbidden/i.test(message)) return "NVIDIA rejected this model or key permission. Verify model access for the key.";
   if (error?.status === 429 || /rate limit/i.test(message)) return "NVIDIA rate limit reached. Wait briefly and retry.";
-  if (/failed to fetch/i.test(message)) return "The browser could not reach NVIDIA. Check the base URL, VPN, browser policy, and NVIDIA availability.";
+  if (/failed to fetch/i.test(message)) return "The browser could not reach the MVA NVIDIA relay. Confirm the HTTPS relay URL is online; do not enter integrate.api.nvidia.com here.";
   return message;
 }
