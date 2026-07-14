@@ -1,26 +1,30 @@
-import { BarChart3, LayoutDashboard, Zap } from "lucide-react";
+import { BarChart3, CalendarRange, LayoutDashboard, Radar, Zap } from "lucide-react";
 import { MvaLogo } from "./ToolIcons.jsx";
 
 const navIcon = {
   dashboard: LayoutDashboard,
   adhoc: Zap,
   monthly: BarChart3,
+  quarterly: CalendarRange,
+  "threat-intel": Radar,
 };
 
 const navItems = [
   { id: "dashboard", label: "Dashboard" },
   { id: "adhoc", label: "Adhoc Scan" },
   { id: "monthly", label: "Monthly Compare" },
+  { id: "quarterly", label: "Quarterly Analysis" },
+  { id: "threat-intel", label: "Threat Intelligence" },
 ];
 
 export function Sidebar({ activePage = "dashboard", onNavigate }) {
   return (
     <aside className="sticky top-0 hidden h-screen w-72 shrink-0 border-r border-cyan-300/15 bg-slate-950/80 p-6 backdrop-blur-2xl lg:block">
       <div className="mb-9 flex items-center gap-4">
-        <MvaLogo />
+        <MvaLogo className="h-20 w-20" />
         <div>
           <p className="text-3xl font-black tracking-tight text-white">MVA</p>
-          <p className="text-sm font-semibold text-slate-400">Unified Agent</p>
+          <p className="text-sm font-semibold text-slate-400">Reporting & Remediation</p>
         </div>
       </div>
 
@@ -36,11 +40,11 @@ export function Sidebar({ activePage = "dashboard", onNavigate }) {
               onClick={() => onNavigate?.(item.id)}
               className={`group flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left text-sm font-bold transition ${
                 isActive
-                  ? "border-emerald-400/50 bg-emerald-400/14 text-white shadow-glow"
+                  ? "border-red-400/45 bg-red-500/[0.08] text-white"
                   : "border-transparent text-slate-400 hover:border-white/10 hover:bg-white/5 hover:text-white"
               }`}
             >
-              <Icon className={`h-5 w-5 ${isActive ? "text-emerald-300" : "text-slate-500 group-hover:text-cyan-300"}`} />
+              <Icon className={`h-5 w-5 ${isActive ? "text-red-300" : "text-slate-500 group-hover:text-red-300"}`} />
               {item.label}
             </button>
           );

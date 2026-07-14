@@ -12,11 +12,14 @@ export function buildRemediationPrompt({ analysis, targetMonth }) {
     advisoryLinks: group.links,
   }));
   const dashboard = analysis?.dashboard ?? {};
-  const summary = analysis?.workflow === "monthly"
+  const comparison = isComparisonWorkflow(analysis);
+  const quarterly = analysis?.workflow === "quarterly";
+  const periodName = quarterly ? "Quarter" : ["adhoc", "quarterly-scan"].includes(analysis?.workflow) ? "Period" : "Month";
+  const summary = comparison
     ? {
         totalOpen: dashboard.totalOpenVulnerabilities?.totalOpen,
-        newThisMonth: dashboard.totalOpenVulnerabilities?.newVulnerabilities,
-        patchedLastMonth: dashboard.totalVulnerabilitiesPatchedLastMonth?.patchedCount,
+        [`newThis${periodName}`]: dashboard.totalOpenVulnerabilities?.newVulnerabilities,
+        [`patchedLast${periodName}`]: (dashboard.totalVulnerabilitiesPatchedLastPeriod ?? dashboard.totalVulnerabilitiesPatchedLastMonth)?.patchedCount,
         patchPriority: dashboard.totalOpenByPatchPriority,
       }
     : {
@@ -31,7 +34,7 @@ Create an industry-standard document with this exact document identity:
 - Title: Remediation Guide
 - Report Type: Remediation
 - Tool Source: ${analysis?.sourceLabel || "MVA"}
-- Reporting Month: ${targetMonth}
+- Reporting ${periodName}: ${targetMonth}
 - Do not include a customer name, purpose section, created-by line, or internal implementation wording.
 
 Required structure:
@@ -55,7 +58,9 @@ ${JSON.stringify(findings, null, 2)}
 export function buildTemplateMarkdown({ analysis, targetMonth }) {
   const groups = groupedPrioritizedFindings(analysis, targetMonth).slice(0, 20);
   const dashboard = analysis?.dashboard ?? {};
-  const total = analysis?.workflow === "monthly" ? dashboard.totalOpenVulnerabilities?.totalOpen : dashboard.totalVulnerabilities;
+  const comparison = isComparisonWorkflow(analysis);
+  const periodName = analysis?.workflow === "quarterly" ? "Quarter" : ["adhoc", "quarterly-scan"].includes(analysis?.workflow) ? "Period" : "Month";
+  const total = comparison ? dashboard.totalOpenVulnerabilities?.totalOpen : dashboard.totalVulnerabilities;
   const lines = [
     "# Remediation Guide",
     "",
@@ -69,7 +74,7 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
     "## 1. Report Summary",
     "",
     `Tool Source: ${analysis?.sourceLabel || "MVA"}`,
-    `Reporting Month: ${targetMonth}`,
+    `Reporting ${periodName}: ${targetMonth}`,
     `Total Open Findings: ${total ?? 0}`,
     "",
     "## 2. Remediation Actions",
@@ -112,7 +117,7 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
   return lines.join("\n");
 }
 
-export async function downloadRemediationPdf({ markdown, sourceLabel, targetMonth }) {
+export async function downloadRemediationPdf({ markdown, sourceLabel, targetMonth, workflow = "monthly" }) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
   doc.setProperties({
@@ -138,7 +143,8 @@ export async function downloadRemediationPdf({ markdown, sourceLabel, targetMont
   doc.setFontSize(11);
   metadataRow(doc, "Report Type", "Remediation", margin, 74, width - margin * 2);
   metadataRow(doc, "Tool Source", sourceLabel || "MVA", margin, 87, width - margin * 2);
-  metadataRow(doc, "Reporting Month", targetMonth || "Not provided", margin, 100, width - margin * 2);
+  const reportingLabel = workflow === "quarterly" ? "Reporting Quarter" : ["adhoc", "quarterly-scan"].includes(workflow) ? "Reporting Period" : "Reporting Month";
+  metadataRow(doc, reportingLabel, targetMonth || "Not provided", margin, 100, width - margin * 2);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(15);
@@ -263,9 +269,14 @@ function addFooters(doc, margin, width, height) {
 }
 
 function prioritizedFindings(analysis, targetMonth) {
-  const selectedSnapshot = analysis?.workflow === "monthly" ? analysis.snapshots?.find((snapshot) => snapshot.month === targetMonth) : null;
-  const findings = selectedSnapshot?.findings ?? (analysis?.workflow === "monthly" ? analysis.currentFindings : analysis?.findings ?? []);
+  const comparison = isComparisonWorkflow(analysis);
+  const selectedSnapshot = comparison ? analysis.snapshots?.find((snapshot) => snapshot.month === targetMonth) : null;
+  const findings = selectedSnapshot?.findings ?? (comparison ? analysis.currentFindings : analysis?.findings ?? []);
   return [...findings].sort((left, right) => priorityRank(left.patchPriority) - priorityRank(right.patchPriority) || right.assetExposure - left.assetExposure);
+}
+
+function isComparisonWorkflow(analysis) {
+  return analysis?.workflow === "monthly" || analysis?.workflow === "quarterly";
 }
 
 function groupedPrioritizedFindings(analysis, targetMonth) {

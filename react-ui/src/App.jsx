@@ -7,13 +7,15 @@ import { MetricsRow } from "./components/MetricsRow.jsx";
 import { MonthlyComparison } from "./components/MonthlyComparison.jsx";
 import { OperationMode } from "./components/OperationMode.jsx";
 import { PriorityMatrix } from "./components/PriorityMatrix.jsx";
+import { QuarterlyTrendPanel } from "./components/QuarterlyTrendPanel.jsx";
 import { RemediationQueue } from "./components/RemediationQueue.jsx";
 import { Sidebar } from "./components/Sidebar.jsx";
 import { SourceChoice } from "./components/SourceChoice.jsx";
 import { TrendPanel } from "./components/TrendPanel.jsx";
+import { ThreatIntelPanel } from "./components/ThreatIntelPanel.jsx";
 import { UploadPanel } from "./components/UploadPanel.jsx";
 import { sourceTools } from "./data/dashboardData.js";
-import { analyzeAdhocFiles, analyzeMonthlyFiles } from "./lib/vulnerabilityEngine.js";
+import { analyzeAdhocFiles, analyzeMonthlyFiles, analyzeQuarterlyScan } from "./lib/vulnerabilityEngine.js";
 
 export default function App() {
   const [selectedSourceId, setSelectedSourceId] = useState("tenable-sc");
@@ -21,13 +23,16 @@ export default function App() {
   const [adhocAnalysis, setAdhocAnalysis] = useState(null);
   const [monthlyAnalysis, setMonthlyAnalysis] = useState(null);
   const [monthlyFiles, setMonthlyFiles] = useState([]);
+  const [quarterlyAnalysis, setQuarterlyAnalysis] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState("");
+  const [lastAnalysis, setLastAnalysis] = useState(null);
 
   const selectedSource = useMemo(
     () => sourceTools.find((source) => source.id === selectedSourceId) ?? sourceTools[0],
     [selectedSourceId],
   );
-  const focusMonthlyDashboard = mode === "monthly" && Boolean(monthlyAnalysis);
+  const focusComparisonDashboard = mode === "monthly" && Boolean(monthlyAnalysis);
+  const focusWorkspace = focusComparisonDashboard || mode === "threat-intel";
 
   const handleModeChange = (nextMode) => {
     setMode(nextMode);
@@ -35,7 +40,7 @@ export default function App() {
 
   const handleNavigation = (page) => {
     if (page === "dashboard") {
-      setMode(null);
+      handleBackToDashboard();
       return;
     }
 
@@ -47,12 +52,15 @@ export default function App() {
     setAdhocAnalysis(null);
     setMonthlyAnalysis(null);
     setMonthlyFiles([]);
+    setQuarterlyAnalysis(null);
     setSelectedMonth("");
+    setLastAnalysis(null);
   };
 
   const handleAdhocAnalyze = async (files) => {
     const result = await analyzeAdhocFiles(files, selectedSourceId);
     setAdhocAnalysis(result);
+    setLastAnalysis(result);
     setSelectedMonth(result.reportMonth);
     return result;
   };
@@ -61,7 +69,16 @@ export default function App() {
     const result = await analyzeMonthlyFiles(files, selectedSourceId);
     setMonthlyFiles(Array.from(files ?? []));
     setMonthlyAnalysis(result);
+    setLastAnalysis(result);
     setSelectedMonth(result.dashboard.uploadedMonths.at(-1));
+    return result;
+  };
+
+  const handleQuarterlyAnalyze = async (files) => {
+    const result = await analyzeQuarterlyScan(files, selectedSourceId);
+    setQuarterlyAnalysis(result);
+    setLastAnalysis(result);
+    setSelectedMonth(result.reportPeriod);
     return result;
   };
 
@@ -76,19 +93,28 @@ export default function App() {
     setSelectedMonth("");
   };
 
+  const handleBackToDashboard = () => {
+    setMode(null);
+    setAdhocAnalysis(null);
+    setMonthlyAnalysis(null);
+    setMonthlyFiles([]);
+    setQuarterlyAnalysis(null);
+    setSelectedMonth("");
+  };
+
   return (
     <div className="relative min-h-screen overflow-x-hidden">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_35%_10%,rgba(20,184,166,.18),transparent_30rem),radial-gradient(circle_at_85%_55%,rgba(245,158,11,.12),transparent_24rem)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_35%_10%,rgba(185,28,28,.14),transparent_30rem),radial-gradient(circle_at_85%_55%,rgba(127,29,29,.1),transparent_24rem)]" />
       <div className="relative z-10 flex">
         <Sidebar activePage={mode ?? "dashboard"} onNavigate={handleNavigation} />
 
-        <main className="w-full min-w-0 px-4 py-5 sm:px-6 lg:px-8">
+        <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-[1800px] flex-col gap-5">
             <HeroHeader />
 
-            <div className={focusMonthlyDashboard ? "grid gap-5" : "grid gap-5 2xl:grid-cols-[1fr_390px]"}>
+            <div className={focusWorkspace ? "grid gap-5" : "grid gap-5 2xl:grid-cols-[1fr_390px]"}>
               <div className="flex min-w-0 flex-col gap-5">
-                {!focusMonthlyDashboard && (
+                {!focusWorkspace && (
                   <>
                     <SourceChoice selectedSourceId={selectedSourceId} onSelect={handleSourceChange} />
                     <OperationMode mode={mode} onModeChange={handleModeChange} />
@@ -99,7 +125,7 @@ export default function App() {
 
                 {mode === "adhoc" && (
                   <>
-                    <UploadPanel selectedSource={selectedSource} analysis={adhocAnalysis} onAnalyze={handleAdhocAnalyze} />
+                    <UploadPanel selectedSource={selectedSource} analysis={adhocAnalysis} onAnalyze={handleAdhocAnalyze} onBackToDashboard={handleBackToDashboard} />
 
                     {adhocAnalysis ? (
                       <>
@@ -128,25 +154,53 @@ export default function App() {
                     onFilesChange={setMonthlyFiles}
                     onEditUploads={handleEditMonthlyUploads}
                     onResetUploads={handleResetMonthlyUploads}
-                    onBackToDashboard={() => setMode(null)}
+                    onBackToDashboard={handleBackToDashboard}
+                    cadence="monthly"
                   />
+                )}
+
+                {mode === "quarterly" && (
+                  <>
+                    <UploadPanel selectedSource={selectedSource} analysis={quarterlyAnalysis} onAnalyze={handleQuarterlyAnalyze} onBackToDashboard={handleBackToDashboard} workflow="quarterly-scan" />
+                    {quarterlyAnalysis ? (
+                      <>
+                        <MetricsRow dashboard={quarterlyAnalysis.dashboard} />
+                        <QuarterlyTrendPanel dashboard={quarterlyAnalysis.dashboard} />
+                        <TrendPanel dashboard={quarterlyAnalysis.dashboard} />
+                        <div className="grid gap-5 xl:grid-cols-[1fr_1fr] 2xl:grid-cols-[1.1fr_1fr]">
+                          <FieldMappingPanel source={selectedSource} exportType={quarterlyAnalysis.exportType} />
+                          <PriorityMatrix />
+                        </div>
+                        <RemediationQueue findings={quarterlyAnalysis.findings} />
+                      </>
+                    ) : (
+                      <EmptyQuarterlyWorkflow />
+                    )}
+                  </>
+                )}
+
+                {mode === "threat-intel" && (
+                  <ThreatIntelPanel analysis={lastAnalysis} onBackToDashboard={handleBackToDashboard} />
                 )}
               </div>
 
-              {!focusMonthlyDashboard && (
+              {!focusWorkspace && (
                 <aside className="flex flex-col gap-5">
+                  {!mode && <PriorityMatrix compact />}
                   <StatusPanel
                     selectedSource={selectedSource}
                     mode={mode}
                     adhocUploaded={Boolean(adhocAnalysis)}
                     monthlyUploaded={Boolean(monthlyAnalysis)}
+                    quarterlyUploaded={Boolean(quarterlyAnalysis)}
                   />
                   {mode !== "monthly" && (
                     <AiReportBuilder
-                      selectedMonth={selectedMonth || "No month detected"}
+                      selectedMonth={selectedMonth || "No period detected"}
                       onMonthChange={setSelectedMonth}
-                      monthOptions={adhocAnalysis ? [adhocAnalysis.reportMonth] : ["No month detected"]}
-                      analysis={adhocAnalysis}
+                      monthOptions={(mode === "quarterly" ? quarterlyAnalysis : adhocAnalysis) ? [mode === "quarterly" ? quarterlyAnalysis.reportPeriod : adhocAnalysis.reportMonth] : ["No period detected"]}
+                      analysis={mode === "quarterly" ? quarterlyAnalysis : adhocAnalysis}
+                      workflow={mode === "quarterly" ? "quarterly-scan" : "adhoc"}
                       compact
                     />
                   )}
@@ -167,10 +221,10 @@ function LandingHint({ selectedSource }) {
         {[
           [DatabaseZap, "Source-aware dashboards", `${selectedSource.name} mapping is selected and ready.`],
           [ShieldCheck, "Exploit-aware priority", "Each supported scanner's exploit signal feeds the same approved P1-P4 matrix."],
-          [BrainCircuit, "AI PDF generation", "Normalized rows can be sent to your AI server for the approved Remediation Guide format."],
+          [BrainCircuit, "AI PDF generation", "Prioritized findings can be sent directly to your selected NVIDIA model for the approved Remediation Guide format."],
         ].map(([Icon, title, body]) => (
           <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-            <Icon className="mb-4 h-8 w-8 text-cyan-300" />
+            <Icon className="mb-4 h-8 w-8 text-red-300" />
             <h3 className="text-lg font-black text-white">{title}</h3>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-400">{body}</p>
           </div>
@@ -182,7 +236,7 @@ function LandingHint({ selectedSource }) {
 
 function EmptyWorkflow() {
   return (
-    <section className="rounded-[1.75rem] border border-dashed border-cyan-300/20 bg-slate-950/50 p-8 text-center">
+    <section className="rounded-[1.75rem] border border-dashed border-red-300/20 bg-slate-950/50 p-8 text-center">
       <p className="mini-label">Waiting for data</p>
       <h2 className="mt-2 text-2xl font-black text-white">Upload an export to unlock Adhoc metrics</h2>
       <p className="mx-auto mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
@@ -192,12 +246,28 @@ function EmptyWorkflow() {
   );
 }
 
-function StatusPanel({ selectedSource, mode, adhocUploaded, monthlyUploaded }) {
+function EmptyQuarterlyWorkflow() {
+  return (
+    <section className="rounded-[1.75rem] border border-dashed border-red-300/20 bg-slate-950/50 p-8 text-center">
+      <p className="mini-label">Waiting for quarterly scan data</p>
+      <h2 className="mt-2 text-2xl font-black text-white">Upload one current scan export</h2>
+      <p className="mx-auto mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
+        MVA will summarize all open findings and build a line chart for vulnerabilities first discovered in the export&apos;s latest three months.
+      </p>
+    </section>
+  );
+}
+
+function StatusPanel({ selectedSource, mode, adhocUploaded, monthlyUploaded, quarterlyUploaded }) {
   const uploadState =
     mode === "monthly"
       ? monthlyUploaded
         ? "Monthly report analyzed"
         : "Waiting for monthly exports"
+      : mode === "quarterly"
+        ? quarterlyUploaded
+          ? "Quarterly report analyzed"
+          : "Waiting for one quarterly scan export"
       : adhocUploaded
         ? "Adhoc report analyzed"
         : "Waiting";
@@ -210,7 +280,7 @@ function StatusPanel({ selectedSource, mode, adhocUploaded, monthlyUploaded }) {
       <div className="mt-5 space-y-3">
         {[
           ["Source Tool", selectedSource.name],
-          ["Operation Mode", mode ? (mode === "adhoc" ? "Adhoc Scan" : "Monthly Data Comparison") : "Not selected"],
+          ["Operation Mode", mode ? (mode === "adhoc" ? "Adhoc Scan" : mode === "quarterly" ? "Quarterly Analysis" : "Monthly Data Comparison") : "Not selected"],
           ["Upload State", uploadState],
           ["Output", "CSV / Excel / Remediation Guide PDF"],
         ].map(([label, value]) => (

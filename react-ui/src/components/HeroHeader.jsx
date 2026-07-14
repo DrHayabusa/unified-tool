@@ -1,4 +1,5 @@
-import { CalendarDays, ShieldCheck } from "lucide-react";
+import { CalendarDays, Cpu, Database, ShieldCheck } from "lucide-react";
+import { MvaLogo } from "./ToolIcons.jsx";
 
 export function HeroHeader() {
   const currentDate = new Intl.DateTimeFormat("en-GB", {
@@ -8,68 +9,62 @@ export function HeroHeader() {
   }).format(new Date());
 
   return (
-    <header className="relative overflow-hidden rounded-[2rem] border border-cyan-300/15 bg-slate-950/75 p-7 shadow-cyber backdrop-blur-2xl">
-      <div className="absolute inset-0 bg-cyber-grid bg-[length:72px_72px] opacity-35" />
-      <div className="absolute left-1/2 top-0 h-64 w-64 -translate-x-1/2 rounded-full border border-emerald-400/25" />
-      <div className="absolute left-[54%] top-10 h-40 w-40 -translate-x-1/2 rounded-full border border-emerald-400/25" />
-      <div className="absolute left-[54%] top-24 h-4 w-4 rounded-full bg-emerald-400 shadow-[0_0_30px_rgba(16,185,129,.9)]" />
-      <div className="absolute right-20 top-16 hidden h-56 w-[28rem] opacity-70 xl:block">
-        <NetworkMap />
-      </div>
+    <header className="relative overflow-hidden rounded-3xl border border-red-400/20 bg-slate-950/90 shadow-cyber">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500 to-transparent" />
+      <div className="absolute inset-0 bg-cyber-grid bg-[length:56px_56px] opacity-[0.13]" />
+      <div className="absolute bottom-0 right-0 h-40 w-40 translate-x-20 translate-y-20 rotate-45 border border-red-500/15" />
 
-      <div className="relative z-10 flex flex-col gap-7 xl:flex-row xl:items-start xl:justify-between">
+      <div className="relative grid gap-7 p-6 md:p-8 xl:grid-cols-[minmax(0,1fr)_390px] xl:items-center">
         <div>
-          <div className="mb-4 flex items-center gap-3">
-            <span className="mini-label">Command Center</span>
-            <span className="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_20px_rgba(52,211,153,.85)]" />
+          <div className="mb-5 flex items-center gap-4">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl border border-red-400/20 bg-black/45">
+              <MvaLogo className="h-12 w-12" />
+            </div>
+            <div>
+              <p className="font-mono text-[0.67rem] font-bold uppercase tracking-[0.22em] text-red-300">MVA Operations</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">Vulnerability control plane</p>
+            </div>
           </div>
-          <h1 className="max-w-5xl text-5xl font-black tracking-[-0.06em] text-white md:text-7xl">
-            Unified Reporting and Remediation
+
+          <h1 className="max-w-4xl text-4xl font-bold tracking-[-0.04em] text-white md:text-6xl">
+            MVA Vulnerability Agent
           </h1>
-          <p className="mt-4 max-w-2xl text-lg font-semibold text-slate-400">
-            MVA vulnerability intake, comparison, and AI-guided remediation cockpit
+          <p className="mt-4 max-w-2xl text-lg font-semibold text-slate-300">
+            Unified reporting and remediation
           </p>
+          <div className="mt-6 flex flex-wrap gap-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            <span className="rounded-lg border border-white/10 bg-black/25 px-3 py-2">Local normalization</span>
+            <span className="rounded-lg border border-white/10 bg-black/25 px-3 py-2">Exploit-aware priority</span>
+            <span className="rounded-lg border border-white/10 bg-black/25 px-3 py-2">Report automation</span>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm font-bold text-slate-200">
-            <CalendarDays className="h-5 w-5 text-cyan-300" />
-            {currentDate}
+        <section className="rounded-2xl border border-white/10 bg-black/35 p-5" aria-label="MVA system posture">
+          <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-4">
+            <div>
+              <p className="font-mono text-[0.65rem] font-bold uppercase tracking-[0.18em] text-red-300">Control Plane</p>
+              <p className="mt-1 text-sm font-semibold text-slate-300">System posture</p>
+            </div>
+            <span className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-slate-400">
+              <CalendarDays className="h-4 w-4 text-red-300" />{currentDate}
+            </span>
           </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-200">
-            <ShieldCheck className="h-5 w-5" />
-            Secure local mode
+          <div className="grid gap-2">
+            <PostureRow icon={Cpu} label="Processing" value="Local browser" />
+            <PostureRow icon={Database} label="Data storage" value="No database" />
+            <PostureRow icon={ShieldCheck} label="Priority engine" value="Active" status />
           </div>
-        </div>
+        </section>
       </div>
     </header>
   );
 }
 
-function NetworkMap() {
-  const nodes = [
-    [20, 60, "bg-emerald-400"],
-    [105, 25, "bg-red-500"],
-    [160, 92, "bg-cyan-300"],
-    [245, 38, "bg-emerald-400"],
-    [320, 110, "bg-red-500"],
-    [390, 58, "bg-cyan-300"],
-  ];
-
+function PostureRow({ icon: Icon, label, value, status = false }) {
   return (
-    <div className="relative h-full w-full">
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 430 180" aria-hidden="true">
-        <path d="M20 60 105 25 160 92 245 38 320 110 390 58" fill="none" stroke="rgba(34,211,238,.34)" strokeWidth="1.6" />
-        <path d="M105 25 320 110M160 92 390 58M20 60 245 38" fill="none" stroke="rgba(239,68,68,.28)" strokeWidth="1.2" />
-        <path d="M0 150h420M0 120h420M0 90h420M0 60h420M0 30h420" stroke="rgba(255,255,255,.06)" />
-      </svg>
-      {nodes.map(([left, top, color], index) => (
-        <span
-          key={`${left}-${top}`}
-          className={`absolute h-3 w-3 rounded-full ${color} shadow-[0_0_20px_currentColor]`}
-          style={{ left, top, animation: `softPulse ${2 + index * 0.2}s ease-in-out infinite` }}
-        />
-      ))}
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-3">
+      <span className="flex items-center gap-3 text-sm font-semibold text-slate-500"><Icon className="h-4 w-4 text-red-300" />{label}</span>
+      <span className="flex items-center gap-2 text-sm font-semibold text-slate-200">{status && <span className="h-2 w-2 rounded-full bg-emerald-400" />}{value}</span>
     </div>
   );
 }

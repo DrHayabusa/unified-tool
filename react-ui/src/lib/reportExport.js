@@ -44,18 +44,20 @@ export async function downloadAnalysisWorkbook(analysis) {
   workbook.modified = new Date();
   workbook.subject = `${analysis.sourceLabel} vulnerability report`;
 
-  if (analysis.workflow === "monthly") await buildMonthlySheet(workbook, analysis);
-  else buildAdhocSheet(workbook, analysis);
-  buildFindingsSheet(workbook, analysis.workflow === "monthly" ? analysis.currentFindings : analysis.findings);
+  if (isComparisonWorkflow(analysis)) await buildMonthlySheet(workbook, analysis);
+  else await buildAdhocSheet(workbook, analysis);
+  buildFindingsSheet(workbook, isComparisonWorkflow(analysis) ? analysis.currentFindings : analysis.findings);
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const suffix = analysis.workflow === "monthly" ? analysis.dashboard.uploadedMonths.at(-1).replaceAll(" ", "_") : "Adhoc";
+  const suffix = isComparisonWorkflow(analysis)
+    ? (analysis.dashboard.uploadedPeriods ?? analysis.dashboard.uploadedMonths).at(-1).replaceAll(" ", "_")
+    : analysis.workflow === "quarterly-scan" ? "Quarterly_3_Month" : "Adhoc";
   saveBlob(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `MVA_${safeName(analysis.sourceLabel)}_${suffix}_Report.xlsx`);
 }
 
 export function downloadNormalizedCsv(analysis) {
   if (!analysis) throw new Error("Analyze an export before downloading normalized findings.");
-  const findings = analysis.workflow === "monthly" ? analysis.currentFindings : analysis.findings;
+  const findings = isComparisonWorkflow(analysis) ? analysis.currentFindings : analysis.findings;
   const rows = [FINDING_COLUMNS.map(([header]) => header)];
   for (const finding of findings) {
     rows.push(FINDING_COLUMNS.map(([, key]) => key === "exploitAvailable" ? (finding[key] ? "Yes" : "No") : finding[key] ?? ""));
@@ -65,26 +67,29 @@ export function downloadNormalizedCsv(analysis) {
 }
 
 async function buildMonthlySheet(workbook, analysis) {
-  const sheet = workbook.addWorksheet("Monthly Report", { views: [{ state: "frozen", ySplit: 3, showGridLines: false }] });
+  const quarterly = analysis.workflow === "quarterly";
+  const singular = quarterly ? "Quarter" : "Month";
+  const plural = quarterly ? "Quarters" : "Months";
+  const sheet = workbook.addWorksheet(`${singular}ly Report`, { views: [{ state: "frozen", ySplit: 3, showGridLines: false }] });
   const dashboard = analysis.dashboard;
   const open = dashboard.totalOpenVulnerabilities;
-  const patched = dashboard.totalVulnerabilitiesPatchedLastMonth;
+  const patched = dashboard.totalVulnerabilitiesPatchedLastPeriod ?? dashboard.totalVulnerabilitiesPatchedLastMonth;
   prepareSheet(sheet, 12);
-  title(sheet, `${reportSourceLabel(analysis.sourceLabel)} Monthly Vulnerability Report`, dashboard.reportRange, 12);
+  title(sheet, `${reportSourceLabel(analysis.sourceLabel)} ${singular}ly Vulnerability Report`, dashboard.reportRange, 12);
 
   kpi(sheet, "A4:C7", "TOTAL OPEN", open.totalOpen, "New + not closed", COLORS.teal);
-  kpi(sheet, "D4:F7", "NEW THIS MONTH", open.newVulnerabilities, "Identified in current report", "0284C7");
+  kpi(sheet, "D4:F7", `NEW THIS ${singular.toUpperCase()}`, open.newVulnerabilities, "Identified in current report", "0284C7");
   kpi(sheet, "G4:I7", "NOT CLOSED", open.notClosedFromPreviousMonths, "Carried from previous report", COLORS.high);
-  kpi(sheet, "J4:L7", "PATCHED LAST MONTH", patched.patchedCount, `${patched.previousMonth} to ${patched.currentMonth}`, COLORS.low);
+  kpi(sheet, "J4:L7", `PATCHED LAST ${singular.toUpperCase()}`, patched.patchedCount, `${patched.previousPeriod} to ${patched.currentPeriod}`, COLORS.low);
 
-  const discoveredTrend = dashboard.trendDiscoveredLast3Months.map((row) => ({ label: row.month, value: row.discoveredCount }));
-  const remediatedTrend = dashboard.trendRemediatedLast3Months.map((row) => ({ label: row.month, value: row.remediatedCount }));
-  section(sheet, "A9:C9", "Vulnerability Trend - Last 3 Months");
+  const discoveredTrend = (dashboard.trendDiscoveredLast3Periods ?? dashboard.trendDiscoveredLast3Months).map((row) => ({ label: row.period ?? row.month, value: row.discoveredCount }));
+  const remediatedTrend = (dashboard.trendRemediatedLast3Periods ?? dashboard.trendRemediatedLast3Months).map((row) => ({ label: row.period ?? row.month, value: row.remediatedCount }));
+  section(sheet, "A9:C9", `Vulnerability Trend - Last 3 ${plural}`);
   writeTable(
     sheet,
     10,
     1,
-    ["Month", "Discovered", "Remediated"],
+    [singular, "Discovered", "Remediated"],
     discoveredTrend.map((row, index) => [row.label, row.value, remediatedTrend[index]?.value ?? 0]),
   );
   await addLineChartImage(workbook, sheet, discoveredTrend, "Vulnerabilities Discovered", "#2563EB", { col: 3, row: 8, width: 490, height: 220 });
@@ -112,20 +117,20 @@ async function buildMonthlySheet(workbook, analysis) {
     true,
   );
 
-  section(sheet, "G27:L27", "Vulnerabilities Patched in Last Month");
-  writeTable(sheet, 28, 7, ["Measure", "Count", "Report Month"], [
-    ["Previous Month Open", patched.previousMonthOpen, patched.previousMonth],
-    ["New This Month", patched.newVulnerabilitiesIdentifiedThisMonth, patched.currentMonth],
-    ["Current Month Open", patched.currentMonthOpen, patched.currentMonth],
-    ["Patched Last Month", patched.patchedCount, patched.currentMonth],
+  section(sheet, "G27:L27", `Vulnerabilities Patched in Last ${singular}`);
+  writeTable(sheet, 28, 7, ["Measure", "Count", `Report ${singular}`], [
+    [`Previous ${singular} Open`, patched.previousPeriodOpen, patched.previousPeriod],
+    [`New This ${singular}`, patched.newVulnerabilitiesIdentifiedThisPeriod, patched.currentPeriod],
+    [`Current ${singular} Open`, patched.currentPeriodOpen, patched.currentPeriod],
+    [`Patched Last ${singular}`, patched.patchedCount, patched.currentPeriod],
   ]);
 
-  section(sheet, "A35:L35", "Uploaded Month Summary");
+  section(sheet, "A35:L35", `Uploaded ${singular} Summary`);
   writeTable(
     sheet,
     36,
     1,
-    ["Month", "Critical", "High", "Medium", "Low", "Total Open", "New", "Patched"],
+    [singular, "Critical", "High", "Medium", "Low", "Total Open", "New", "Patched"],
     dashboard.severityTrend.map((row, index) => [
       row.month,
       row.Critical,
@@ -148,11 +153,16 @@ async function buildMonthlySheet(workbook, analysis) {
   }
 }
 
-function buildAdhocSheet(workbook, analysis) {
-  const sheet = workbook.addWorksheet("Adhoc Report", { views: [{ state: "frozen", ySplit: 3, showGridLines: false }] });
+function isComparisonWorkflow(analysis) {
+  return analysis?.workflow === "monthly" || analysis?.workflow === "quarterly";
+}
+
+async function buildAdhocSheet(workbook, analysis) {
+  const quarterly = analysis.workflow === "quarterly-scan";
+  const sheet = workbook.addWorksheet(quarterly ? "Quarterly Report" : "Adhoc Report", { views: [{ state: "frozen", ySplit: 3, showGridLines: false }] });
   const dashboard = analysis.dashboard;
   prepareSheet(sheet, 12);
-  title(sheet, `${analysis.sourceLabel} Adhoc Vulnerability Report`, `${analysis.exportType} | ${analysis.fileName}`, 12);
+  title(sheet, `${analysis.sourceLabel} ${quarterly ? "Quarterly 3-Month" : "Adhoc"} Vulnerability Report`, `${quarterly ? `${analysis.reportPeriod} | ` : ""}${analysis.exportType} | ${analysis.fileName}`, 12);
   kpi(sheet, "A4:C7", "TOTAL VULNERABILITIES", dashboard.totalVulnerabilities, "Open findings", COLORS.teal);
   kpi(sheet, "D4:F7", "DISTINCT ASSETS", dashboard.distinctAssets, "Affected assets", "0284C7");
   kpi(sheet, "G4:I7", "EXPLOIT AVAILABLE", dashboard.exploitAvailable, "Known exploit signal", COLORS.high);
@@ -167,6 +177,18 @@ function buildAdhocSheet(workbook, analysis) {
   writeTable(sheet, 20, 1, ["Asset", "Vulnerability Count"], dashboard.top10AffectedAssets.map((row) => [row.asset, row.vulnerabilityCount]));
   section(sheet, "G19:L19", "Top Products");
   writeTable(sheet, 20, 7, ["Product", "Vulnerability Count"], dashboard.topProducts.map((row) => [row.product, row.vulnerabilityCount]));
+
+  if (quarterly) {
+    section(sheet, "A32:L32", "Vulnerabilities Discovered - Last 3 Months");
+    await addLineChartImage(
+      workbook,
+      sheet,
+      dashboard.quarterlyDiscoveryTrend.map((row) => ({ label: row.month, value: row.discoveredCount })),
+      "Vulnerabilities Discovered - Last 3 Months",
+      "#DC2626",
+      { col: 0.5, row: 32.5, width: 720, height: 288 },
+    );
+  }
 }
 
 function buildFindingsSheet(workbook, findings) {

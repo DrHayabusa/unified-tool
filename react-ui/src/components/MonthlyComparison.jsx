@@ -4,8 +4,6 @@ import {
   Cell,
   CartesianGrid,
   Legend,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -13,8 +11,9 @@ import {
 } from "recharts";
 import { useState } from "react";
 import { ArrowLeft, BrainCircuit, CalendarRange, Download, FileSpreadsheet, FileText, RefreshCcw, Table2, Trash2, UploadCloud, X } from "lucide-react";
-import { AGE_BUCKETS, extractMonthFromFilename } from "../lib/vulnerabilityEngine.js";
+import { AGE_BUCKETS, extractMonthFromFilename, extractQuarterFromFilename } from "../lib/vulnerabilityEngine.js";
 import { downloadAnalysisWorkbook, downloadNormalizedCsv } from "../lib/reportExport.js";
+import { buildTemplateMarkdown, downloadRemediationPdf } from "../lib/pdfReport.js";
 import { isSupportedUploadFile, mergeUploadFiles, removeUploadFile, uploadFileKey } from "../lib/uploadFiles.js";
 import { loadBundledSamples } from "../data/sampleFiles.js";
 import { AiReportBuilder } from "./AiReportBuilder.jsx";
@@ -22,16 +21,19 @@ import { AiReportBuilder } from "./AiReportBuilder.jsx";
 const PRIORITY_COLORS = { P1: "#dc2626", P2: "#ea580c", P3: "#ca8a04", P4: "#16a34a" };
 const SEVERITY_COLORS = { Critical: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#22c55e", Info: "#0ea5e9", Unknown: "#64748b" };
 
-export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selectedMonth, onMonthChange, files, onFilesChange, onEditUploads, onResetUploads, onBackToDashboard }) {
+export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selectedMonth, onMonthChange, files, onFilesChange, onEditUploads, onResetUploads, onBackToDashboard, cadence = "monthly" }) {
   const [exportStatus, setExportStatus] = useState({ state: "idle", message: "" });
+  const labels = comparisonLabels(cadence);
   if (!analysis) {
-    return <MonthlyUploadGate key={selectedSource.id} selectedSource={selectedSource} onAnalyze={onAnalyze} files={files} onFilesChange={onFilesChange} onResetUploads={onResetUploads} onBackToDashboard={onBackToDashboard} />;
+    return <MonthlyUploadGate key={`${selectedSource.id}-${cadence}`} selectedSource={selectedSource} onAnalyze={onAnalyze} files={files} onFilesChange={onFilesChange} onResetUploads={onResetUploads} onBackToDashboard={onBackToDashboard} cadence={cadence} />;
   }
 
   const dashboard = analysis.dashboard;
-  const monthOptions = dashboard.uploadedMonths;
+  const monthOptions = dashboard.uploadedPeriods ?? dashboard.uploadedMonths;
   const open = dashboard.totalOpenVulnerabilities;
-  const patched = dashboard.totalVulnerabilitiesPatchedLastMonth;
+  const patched = dashboard.totalVulnerabilitiesPatchedLastPeriod ?? dashboard.totalVulnerabilitiesPatchedLastMonth;
+  const discoveredTrend = dashboard.trendDiscoveredLast3Periods ?? dashboard.trendDiscoveredLast3Months;
+  const remediatedTrend = dashboard.trendRemediatedLast3Periods ?? dashboard.trendRemediatedLast3Months;
   const total = open.totalOpen || 1;
   const ageChartData = AGE_BUCKETS.map((bucket) => ({
     bucket: bucket.replace(" (6+ months)", ""),
@@ -64,22 +66,34 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
     }
   };
 
+  const downloadPdf = async () => {
+    const targetPeriod = selectedMonth || monthOptions.at(-1);
+    setExportStatus({ state: "loading", message: `Building the ${targetPeriod} Remediation Guide PDF...` });
+    try {
+      const markdown = buildTemplateMarkdown({ analysis, targetMonth: targetPeriod });
+      await downloadRemediationPdf({ markdown, sourceLabel: analysis.sourceLabel, targetMonth: targetPeriod, workflow: cadence });
+      setExportStatus({ state: "success", message: `Remediation Guide PDF generated for ${targetPeriod}.` });
+    } catch (error) {
+      setExportStatus({ state: "error", message: error.message || "PDF export failed." });
+    }
+  };
+
   return (
-    <section className="rounded-[1.75rem] border border-cyan-300/15 bg-slate-950/80 p-5 shadow-cyber backdrop-blur-xl">
+    <section className="rounded-[1.75rem] border border-red-400/15 bg-slate-950/85 p-5 shadow-cyber backdrop-blur-xl">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="mini-label text-emerald-300">Monthly Comparison Report</p>
+          <p className="mini-label text-red-300">{labels.title} Comparison Report</p>
           <h2 className="mt-1 text-2xl font-black text-white">{dashboard.reportRange}</h2>
-          <p className="mt-1 text-sm font-semibold text-slate-400">{analysis.sourceLabel} | {analysis.snapshots.length} validated monthly CSV/XLSX exports</p>
+          <p className="mt-1 text-sm font-semibold text-slate-400">{analysis.sourceLabel} | {analysis.snapshots.length} validated {labels.lower} CSV/XLSX exports</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={onBackToDashboard} className="ghost-button flex items-center gap-2 py-3">
             <ArrowLeft className="h-4 w-4" />
-            Dashboard
+            Back to Dashboard
           </button>
           <button type="button" onClick={onEditUploads} className="ghost-button flex items-center gap-2 py-3">
             <RefreshCcw className="h-4 w-4" />
-            Edit Monthly Files
+            Back to {labels.title} Uploads
           </button>
           <button type="button" onClick={downloadExcel} disabled={exportStatus.state === "loading"} className="ghost-button flex items-center gap-2 py-3 disabled:cursor-wait disabled:opacity-50">
             <Download className="h-4 w-4" />
@@ -89,9 +103,13 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
             <Table2 className="h-4 w-4" />
             Normalized CSV
           </button>
+          <button type="button" onClick={downloadPdf} disabled={exportStatus.state === "loading"} className="ghost-button flex items-center gap-2 py-3 disabled:cursor-wait disabled:opacity-50">
+            <FileText className="h-4 w-4" />
+            Download PDF Report
+          </button>
           <a href="#ai-report-builder" className="neon-button flex items-center gap-2 py-3">
             <BrainCircuit className="h-4 w-4" />
-            Generate Remediation PDF
+            AI PDF Options
           </a>
         </div>
       </div>
@@ -102,7 +120,7 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
         </div>
       )}
 
-      <div className="mb-5 rounded-2xl border border-cyan-300/15 bg-slate-900/70 p-4">
+      <div className="mb-5 rounded-2xl border border-red-300/15 bg-slate-900/70 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <p className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">
             {open.totalOpen.toLocaleString()} open | {open.newVulnerabilities.toLocaleString()} new | {patched.patchedCount.toLocaleString()} patched
@@ -120,23 +138,15 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Total Open Vulnerabilities" value={open.totalOpen} helper={`${open.newVulnerabilities} new + ${open.notClosedFromPreviousMonths} not closed`} color="#14b8a6" />
+        <Kpi label="Total Open Vulnerabilities" value={open.totalOpen} helper={`${open.newVulnerabilities} new + ${open.notClosedFromPreviousMonths} not closed`} color="#f87171" />
         <Kpi label="Immediate Patch Needed" value={(dashboard.totalOpenByPatchPriority.P1 ?? 0) + (dashboard.totalOpenByPatchPriority.P2 ?? 0)} helper="P1 + P2" color="#ef4444" />
-        <Kpi label="Patched Last Month" value={patched.patchedCount} helper={`${patched.previousMonth} to ${patched.currentMonth}`} color="#22c55e" />
-        <Kpi label="Files Compared" value={analysis.snapshots.length} helper={dashboard.uploadedMonths.join(" | ")} color="#38bdf8" />
+        <Kpi label={`Patched Last ${labels.singular}`} value={patched.patchedCount} helper={`${patched.previousPeriod} to ${patched.currentPeriod}`} color="#22c55e" />
+        <Kpi label="Files Compared" value={analysis.snapshots.length} helper={monthOptions.join(" | ")} color="#38bdf8" />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <ChartPanel number="1" title="Vulnerabilities Discovered - Last 3 Months" subtitle="New findings first observed in each uploaded month">
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={dashboard.trendDiscoveredLast3Months} margin={{ top: 12, right: 20, bottom: 4, left: -8 }}>
-              <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-              <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
-              <YAxis allowDecimals={false} stroke="#64748b" tick={{ fontSize: 11 }} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Line dataKey="discoveredCount" name="Discovered" type="monotone" stroke="#38bdf8" strokeWidth={3} dot={{ r: 5, fill: "#0f172a", strokeWidth: 3 }} isAnimationActive={false} />
-            </LineChart>
-          </ResponsiveContainer>
+        <ChartPanel number="1" title={`Vulnerabilities Discovered - Last 3 ${labels.plural}`} subtitle={`New findings first observed in each uploaded ${labels.lower}`}>
+          <TrendLineChart data={discoveredTrend} valueKey="discoveredCount" color="#f87171" seriesName="Discovered" />
         </ChartPanel>
 
         <ChartPanel number="2" title="Total Open Vulnerabilities" subtitle="New findings plus findings not closed from the previous report">
@@ -150,7 +160,7 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
         <ChartPanel number="3" title="Total Open by Patch Priority" subtitle="Approved severity and exploit-availability matrix">
           <ResponsiveContainer width="100%" height={270}>
             <BarChart data={priorityData} margin={{ top: 12, right: 18, bottom: 4, left: -8 }}>
-              <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
+              <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="priority" stroke="#64748b" />
               <YAxis allowDecimals={false} stroke="#64748b" />
               <Tooltip contentStyle={tooltipStyle} />
@@ -164,7 +174,7 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
         <ChartPanel number="4" title="Open Findings by Age and Patch Priority" subtitle="Cumulative >7, >30, >60, and >180 day thresholds">
           <ResponsiveContainer width="100%" height={270}>
             <BarChart data={ageChartData} margin={{ top: 12, right: 18, bottom: 4, left: -8 }}>
-              <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
+              <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="bucket" stroke="#64748b" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} stroke="#64748b" />
               <Tooltip contentStyle={tooltipStyle} />
@@ -176,21 +186,13 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
       </div>
 
       <div className="mt-5">
-        <ChartPanel number="5" title="Vulnerabilities Patched - Last 3 Months" subtitle="Findings present in one report and absent from the next">
+        <ChartPanel number="5" title={`Vulnerabilities Patched - Last 3 ${labels.plural}`} subtitle="Findings present in one report and absent from the next">
           <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={dashboard.trendRemediatedLast3Months} margin={{ top: 12, right: 20, bottom: 4, left: -8 }}>
-                <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-                <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} stroke="#64748b" tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Line dataKey="remediatedCount" name="Patched" type="monotone" stroke="#22c55e" strokeWidth={3} dot={{ r: 5, fill: "#0f172a", strokeWidth: 3 }} isAnimationActive={false} />
-              </LineChart>
-            </ResponsiveContainer>
+            <TrendLineChart data={remediatedTrend} valueKey="remediatedCount" color="#22c55e" seriesName="Patched" />
             <div className="grid content-center gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/8 p-5">
-              <p className="mini-label">Latest Month Calculation</p>
+              <p className="mini-label">Latest {labels.singular} Calculation</p>
               <p className="text-5xl font-black text-emerald-300">{patched.patchedCount}</p>
-              <p className="text-sm font-semibold leading-6 text-slate-400">{patched.previousMonthOpen} previous open + {patched.newVulnerabilitiesIdentifiedThisMonth} new - {patched.currentMonthOpen} current open</p>
+              <p className="text-sm font-semibold leading-6 text-slate-400">{patched.previousPeriodOpen} previous open + {patched.newVulnerabilitiesIdentifiedThisPeriod} new - {patched.currentPeriodOpen} current open</p>
             </div>
           </div>
         </ChartPanel>
@@ -199,10 +201,10 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
       {dashboard.crowdstrikeInsights && <CrowdStrikeInsights insights={dashboard.crowdstrikeInsights} />}
 
       <div className="mt-5 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
-        <div className="mb-3 flex items-center gap-3"><FileSpreadsheet className="h-5 w-5 text-emerald-300" /><h3 className="font-black text-white">Uploaded Month Report</h3></div>
+        <div className="mb-3 flex items-center gap-3"><FileSpreadsheet className="h-5 w-5 text-emerald-300" /><h3 className="font-black text-white">Uploaded {labels.singular} Report</h3></div>
         <div className="overflow-auto">
           <table className="w-full min-w-[900px] border-collapse text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-slate-500"><tr>{["Month", "Critical", "High", "Medium", "Low", "Total Open", "New", "Patched"].map((heading) => <th key={heading} className="border-b border-white/10 px-3 py-3 font-black">{heading}</th>)}</tr></thead>
+            <thead className="text-xs uppercase tracking-wide text-slate-500"><tr>{[labels.singular, "Critical", "High", "Medium", "Low", "Total Open", "New", "Patched"].map((heading) => <th key={heading} className="border-b border-white/10 px-3 py-3 font-black">{heading}</th>)}</tr></thead>
             <tbody>{dashboard.severityTrend.map((row, index) => <tr key={row.month} className="border-b border-white/5 text-slate-300"><td className="px-3 py-3 font-bold text-white">{row.month}</td><td className="px-3 py-3 text-red-300">{row.Critical}</td><td className="px-3 py-3 text-orange-300">{row.High}</td><td className="px-3 py-3 text-yellow-200">{row.Medium}</td><td className="px-3 py-3 text-emerald-300">{row.Low}</td><td className="px-3 py-3 font-black text-white">{row.totalOpen}</td><td className="px-3 py-3 text-sky-300">{dashboard.openTrend[index].newThisMonth}</td><td className="px-3 py-3 text-emerald-300">{dashboard.openTrend[index].patchedSinceLastMonth}</td></tr>)}</tbody>
           </table>
         </div>
@@ -212,72 +214,74 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
         <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
           <p className="mini-label">Report Outputs</p>
           <h3 className="mt-1 text-xl font-black text-white">Excel, normalized CSV, and Remediation Guide PDF</h3>
-          <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Excel and normalized CSV are generated from the local comparison. The selected month findings are sent only when you request an AI Remediation Guide.</p>
+          <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Excel, normalized CSV, and the standard PDF are generated locally. Only the selected {labels.unitLower} summary and prioritized normalized findings are sent when you request an AI-generated guide.</p>
         </article>
-        <AiReportBuilder analysis={analysis} selectedMonth={selectedMonth} onMonthChange={onMonthChange} monthOptions={monthOptions} workflow="monthly" />
+        <AiReportBuilder analysis={analysis} selectedMonth={selectedMonth} onMonthChange={onMonthChange} monthOptions={monthOptions} workflow={cadence} />
       </div>
     </section>
   );
 }
 
-function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChange, onResetUploads, onBackToDashboard }) {
-  const [status, setStatus] = useState(() => selectionStatus(files.length));
+function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChange, onResetUploads, onBackToDashboard, cadence }) {
+  const labels = comparisonLabels(cadence);
+  const [statusOverride, setStatusOverride] = useState(null);
+  const status = statusOverride ?? selectionStatus(files.length, cadence);
   const [sampleVariant, setSampleVariant] = useState("vulnerability-per-asset");
-  const detectedMonths = files.map((file) => extractMonthFromFilename(file.name)?.label).filter(Boolean);
+  const periodExtractor = cadence === "quarterly" ? extractQuarterFromFilename : extractMonthFromFilename;
+  const detectedMonths = files.map((file) => periodExtractor(file.name)?.label).filter(Boolean);
   const canAnalyze = files.length >= 2;
 
   const selectFiles = (fileList) => {
     const incomingFiles = Array.from(fileList ?? []);
     const invalid = incomingFiles.find((file) => !isSupportedUploadFile(file));
     if (invalid) {
-      setStatus({ state: "error", message: `${invalid.name} is not supported. Upload CSV or XLSX.` });
+      setStatusOverride({ state: "error", message: `${invalid.name} is not supported. Upload CSV or XLSX.` });
       return;
     }
-    const mergedFiles = mergeUploadFiles(files, incomingFiles);
-    onFilesChange?.(mergedFiles);
-    setStatus(selectionStatus(mergedFiles.length));
+    // Functional state prevents rapid consecutive drops from reading stale props.
+    onFilesChange?.((currentFiles) => mergeUploadFiles(currentFiles, incomingFiles));
+    setStatusOverride(null);
   };
 
   const removeFile = (file) => {
-    const remainingFiles = removeUploadFile(files, file);
-    onFilesChange?.(remainingFiles);
-    setStatus(selectionStatus(remainingFiles.length));
+    onFilesChange?.((currentFiles) => removeUploadFile(currentFiles, file));
+    setStatusOverride(null);
   };
 
   const clearFiles = () => {
     onResetUploads?.();
-    setStatus(selectionStatus(0));
+    setStatusOverride(null);
   };
 
   const analyze = async () => {
     if (!canAnalyze) return;
-    setStatus({ state: "loading", message: `Comparing ${files.length} monthly reports locally...` });
+    setStatusOverride({ state: "loading", message: `Comparing ${files.length} ${labels.unitLower} reports locally...` });
     try {
       const result = await onAnalyze(files);
-      setStatus({ state: "success", message: `${result.snapshots.length} reports analyzed.` });
+      setStatusOverride({ state: "success", message: `${result.snapshots.length} reports analyzed.` });
     } catch (error) {
-      setStatus({ state: "error", message: error.message || "Monthly analysis failed." });
+      setStatusOverride({ state: "error", message: error.message || `${labels.title} analysis failed.` });
     }
   };
 
   const loadSamples = async () => {
-    setStatus({ state: "loading", message: `Loading four real ${selectedSource.name} sample CSVs...` });
+    setStatusOverride({ state: "loading", message: `Loading four real ${selectedSource.name} sample CSVs...` });
     try {
-      const samples = await loadBundledSamples(selectedSource.id, "monthly", sampleVariant);
+      const samples = await loadBundledSamples(selectedSource.id, cadence, sampleVariant);
       selectFiles(samples);
     } catch (error) {
-      setStatus({ state: "error", message: error.message || "Sample loading failed." });
+      setStatusOverride({ state: "error", message: error.message || "Sample loading failed." });
     }
   };
 
   return (
     <section className="cyber-panel rounded-[1.75rem] p-5">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div><p className="mini-label">Monthly Data Comparison</p><h2 className="mt-1 text-2xl font-black text-white">Upload monthly exports</h2><p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Choose two or more {selectedSource.name} CSV or XLSX files. Tenable.sc and Tenable.io can be mixed; CrowdStrike monthly comparison uses Vulnerabilities or Vulnerability per asset exports.</p></div>
+        <div><p className="mini-label">{labels.title} Data Comparison</p><h2 className="mt-1 text-2xl font-black text-white">Upload {labels.lower} exports</h2><p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Choose two or more {selectedSource.name} CSV or XLSX files. Use one export per {labels.unitLower}; CrowdStrike comparison uses Vulnerabilities or Vulnerability per asset exports.</p></div>
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={onBackToDashboard} className="ghost-button flex items-center gap-2 py-2.5">
             <ArrowLeft className="h-4 w-4" />
-            Dashboard
+            Back to Dashboard
           </button>
           <span className={`rounded-full border px-4 py-2 text-sm font-bold ${canAnalyze ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-200" : "border-white/10 bg-white/5 text-slate-400"}`}>{files.length ? `${files.length} reports selected` : "No reports selected"}</span>
         </div>
@@ -288,14 +292,14 @@ function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChang
           <label className="group grid min-h-64 cursor-pointer place-items-center rounded-3xl border border-dashed border-white/20 bg-slate-950/50 p-8 text-center transition hover:border-emerald-300/45 hover:bg-emerald-400/5" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); selectFiles(event.dataTransfer.files); }}>
             <input className="sr-only" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple onChange={(event) => { selectFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
             <UploadCloud className="mb-4 h-16 w-16 text-slate-300 transition group-hover:text-emerald-300" />
-            <p className="text-lg font-black text-white">Drop one or more monthly CSV/XLSX files here</p>
+            <p className="text-lg font-black text-white">Drop one or more {labels.lower} CSV/XLSX files here</p>
             <p className="mt-2 text-sm font-semibold text-slate-500">Add files across separate drops or browse actions. Existing selections stay in place.</p>
           </label>
           {files.length > 0 && (
             <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-black text-white">Selected monthly reports</p>
+                  <p className="text-sm font-black text-white">Selected {labels.lower} reports</p>
                   <p className="mt-1 text-xs font-semibold text-slate-500">Matching filenames are replaced; every other report is added.</p>
                 </div>
                 <button type="button" onClick={clearFiles} className="flex items-center gap-2 rounded-xl border border-red-300/20 bg-red-400/10 px-3 py-2 text-xs font-black text-red-200 transition hover:bg-red-400/20">
@@ -308,7 +312,7 @@ function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChang
                   <article key={uploadFileKey(file)} className="flex min-w-0 items-center gap-3 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] p-3">
                     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-200"><FileText className="h-5 w-5" /></span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-black uppercase tracking-wide text-cyan-200">{extractMonthFromFilename(file.name)?.label ?? "Month detected during analysis"}</p>
+                      <p className="text-xs font-black uppercase tracking-wide text-cyan-200">{periodExtractor(file.name)?.label ?? `${labels.singular} detected during analysis`}</p>
                       <p className="mt-1 truncate text-xs font-semibold text-slate-400" title={file.name}>{file.name}</p>
                     </div>
                     <button type="button" onClick={() => removeFile(file)} aria-label={`Remove ${file.name}`} title={`Remove ${file.name}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 text-slate-400 transition hover:border-red-300/30 hover:bg-red-400/10 hover:text-red-200"><X className="h-4 w-4" /></button>
@@ -319,42 +323,110 @@ function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChang
           )}
           {selectedSource.id === "crowdstrike" && (
             <label className="mt-4 block rounded-2xl border border-red-300/15 bg-red-400/5 p-4">
-              <span className="mb-2 block text-xs font-black uppercase tracking-wide text-red-200">CrowdStrike monthly export type</span>
+              <span className="mb-2 block text-xs font-black uppercase tracking-wide text-red-200">CrowdStrike {labels.lower} export type</span>
               <select value={sampleVariant} onChange={(event) => setSampleVariant(event.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-3 text-sm font-bold text-slate-200 outline-none">
                 <option value="vulnerabilities">Vulnerabilities</option>
                 <option value="vulnerability-per-asset">Vulnerability per asset</option>
                 <option value="remediation-per-assets" disabled>Remediation per assets (Adhoc only)</option>
               </select>
-              <p className="mt-3 font-mono text-xs font-semibold text-slate-400">Filename: {crowdStrikeFilenameExample(sampleVariant)}</p>
+              <p className="mt-3 font-mono text-xs font-semibold text-slate-400">Filename: {crowdStrikeFilenameExample(sampleVariant, cadence)}</p>
             </label>
           )}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={loadSamples} disabled={status.state === "loading"} className="ghost-button disabled:cursor-not-allowed disabled:opacity-45">Load 4-Month Test Pack</button>
-            <button type="button" onClick={analyze} disabled={!canAnalyze || status.state === "loading"} className="neon-button disabled:cursor-not-allowed disabled:opacity-45">{status.state === "loading" ? "Analyzing Monthly Reports..." : "Analyze & Generate Monthly Report"}</button>
+            <button type="button" onClick={loadSamples} disabled={status.state === "loading"} className="ghost-button disabled:cursor-not-allowed disabled:opacity-45">Load 4-{labels.singular} Test Pack</button>
+            <button type="button" onClick={analyze} disabled={!canAnalyze || status.state === "loading"} className="neon-button disabled:cursor-not-allowed disabled:opacity-45">{status.state === "loading" ? `Analyzing ${labels.title} Reports...` : `Analyze & Generate ${labels.title} Report`}</button>
           </div>
           <p className={`mt-3 rounded-xl border px-4 py-3 text-xs font-bold ${status.state === "error" ? "border-red-300/25 bg-red-400/10 text-red-100" : status.state === "ready" ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/5 text-slate-400"}`}>{status.message}</p>
         </div>
         <div className="grid gap-4">
-          <Requirement title="2+ Monthly Reports" body="Calculates total open, new, not closed, and patched findings." />
-          <Requirement title="3+ Monthly Reports" body="Builds the required three-month discovered and patched line charts." />
+          <Requirement title={`2+ ${labels.title} Reports`} body="Calculates total open, new, not closed, and patched findings." />
+          <Requirement title={`3+ ${labels.title} Reports`} body={`Builds the required three-${labels.unitLower} discovered and patched line charts.`} />
           <Requirement title="Auto Field Mapping" body={`${selectedSource.name} headers are detected and normalized before comparison.`} />
-          {detectedMonths.length > 0 && <Requirement title="Detected Months" body={detectedMonths.join(" | ")} />}
+          {detectedMonths.length > 0 && <Requirement title={`Detected ${labels.plural}`} body={detectedMonths.join(" | ")} />}
         </div>
       </div>
     </section>
   );
 }
 
-function selectionStatus(fileCount) {
-  if (fileCount === 0) return { state: "idle", message: "Select at least two monthly CSV or XLSX exports." };
-  if (fileCount === 1) return { state: "idle", message: "1 monthly report selected. Add one more report to compare." };
-  return { state: "ready", message: `${fileCount} monthly reports ready. You can add or remove files before analysis.` };
+function selectionStatus(fileCount, cadence = "monthly") {
+  const lower = cadence === "quarterly" ? "quarterly" : "monthly";
+  if (fileCount === 0) return { state: "idle", message: `Select at least two ${lower} CSV or XLSX exports.` };
+  if (fileCount === 1) return { state: "idle", message: `1 ${lower} report selected. Add one more report to compare.` };
+  return { state: "ready", message: `${fileCount} ${lower} reports ready. You can add or remove files before analysis.` };
 }
 
-function crowdStrikeFilenameExample(variant) {
-  if (variant === "vulnerabilities") return "crowdstrike_vulnerabilities_july_2026.csv";
-  if (variant === "remediation-per-assets") return "crowdstrike_remediation_per_assets_july_2026.csv";
-  return "crowdstrike_vulnerability_per_asset_july_2026.csv";
+function crowdStrikeFilenameExample(variant, cadence) {
+  const period = cadence === "quarterly" ? "q3_2026" : "july_2026";
+  if (variant === "vulnerabilities") return `crowdstrike_vulnerabilities_${period}.csv`;
+  if (variant === "remediation-per-assets") return `crowdstrike_remediation_per_assets_${period}.csv`;
+  return `crowdstrike_vulnerability_per_asset_${period}.csv`;
+}
+
+function comparisonLabels(cadence) {
+  return cadence === "quarterly"
+    ? { title: "Quarterly", lower: "quarterly", unitLower: "quarter", singular: "Quarter", plural: "Quarters" }
+    : { title: "Monthly", lower: "monthly", unitLower: "month", singular: "Month", plural: "Months" };
+}
+
+function TrendLineChart({ data = [], valueKey, color, seriesName }) {
+  const width = 760;
+  const height = 260;
+  const plot = { left: 58, top: 24, right: 24, bottom: 54 };
+  const plotWidth = width - plot.left - plot.right;
+  const plotHeight = height - plot.top - plot.bottom;
+  const values = data.map((row) => Math.max(0, Number(row[valueKey]) || 0));
+  const maxValue = Math.max(1, ...values);
+  const axisMax = Math.max(5, Math.ceil(maxValue / 5) * 5);
+  const xFor = (index) => plot.left + (data.length <= 1 ? plotWidth / 2 : (index / (data.length - 1)) * plotWidth);
+  const yFor = (value) => plot.top + plotHeight - (value / axisMax) * plotHeight;
+  const points = data.map((row, index) => `${xFor(index)},${yFor(values[index])}`).join(" ");
+  const areaPoints = data.length ? `${plot.left},${plot.top + plotHeight} ${points} ${xFor(data.length - 1)},${plot.top + plotHeight}` : "";
+  const gradientId = `trend-${valueKey}`;
+  const ticks = Array.from({ length: 5 }, (_, index) => Math.round((axisMax * index) / 4));
+
+  return (
+    <div className="min-w-0" role="img" aria-label={`${seriesName} line chart: ${data.map((row, index) => `${row.period ?? row.month}, ${values[index]}`).join("; ")}`}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-[260px] w-full overflow-visible" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.015" />
+          </linearGradient>
+        </defs>
+        {ticks.map((tick) => {
+          const y = yFor(tick);
+          return (
+            <g key={tick}>
+              <line x1={plot.left} y1={y} x2={width - plot.right} y2={y} stroke="#24324a" strokeDasharray="5 6" />
+              <text x={plot.left - 13} y={y + 4} textAnchor="end" fill="#8290a8" fontSize="12" fontWeight="700">{tick}</text>
+            </g>
+          );
+        })}
+        {areaPoints && <polygon points={areaPoints} fill={`url(#${gradientId})`} />}
+        {points && <polyline points={points} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
+        {data.map((row, index) => {
+          const x = xFor(index);
+          const y = yFor(values[index]);
+          return (
+            <g key={`${row.period ?? row.month}-${index}`}>
+              <circle cx={x} cy={y} r="7" fill="#09090b" stroke={color} strokeWidth="4" vectorEffect="non-scaling-stroke" />
+              <text x={x} y={Math.max(16, y - 14)} textAnchor="middle" fill="#f8fafc" fontSize="13" fontWeight="900">{values[index]}</text>
+              <text x={x} y={height - 20} textAnchor="middle" fill="#a7b3c7" fontSize="12" fontWeight="800">{row.period ?? row.month}</text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {data.map((row, index) => (
+          <div key={`${seriesName}-${row.period ?? row.month}`} className="rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2 text-center">
+            <p className="text-[0.65rem] font-black uppercase tracking-wide text-slate-500">{row.period ?? row.month}</p>
+            <p className="mt-1 text-lg font-black" style={{ color }}>{values[index].toLocaleString()}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function Kpi({ label, value, helper, color }) {
@@ -362,7 +434,7 @@ function Kpi({ label, value, helper, color }) {
 }
 
 function ChartPanel({ number, title, subtitle, children }) {
-  return <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-5"><div className="mb-3 flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-emerald-300/20 bg-emerald-400/10 font-mono text-xs font-black text-emerald-300">{number}</span><div><h3 className="font-black text-white">{title}</h3><p className="mt-1 text-xs font-semibold text-slate-500">{subtitle}</p></div></div>{children}</article>;
+  return <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-5"><div className="mb-3 flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-red-300/25 bg-red-400/10 font-mono text-xs font-black text-red-200">{number}</span><div><h3 className="font-black text-white">{title}</h3><p className="mt-1 text-xs font-semibold text-slate-500">{subtitle}</p></div></div>{children}</article>;
 }
 
 function OpenMeasure({ label, value, color }) {
@@ -377,4 +449,4 @@ function Requirement({ title, body }) {
   return <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-5"><div className="mb-3 flex items-center gap-3"><CalendarRange className="h-5 w-5 text-cyan-300" /><p className="font-black text-white">{title}</p></div><p className="text-sm font-semibold leading-6 text-slate-500">{body}</p></div>;
 }
 
-const tooltipStyle = { background: "#020617", border: "1px solid #1e293b", borderRadius: 12, color: "#e2e8f0" };
+const tooltipStyle = { background: "#09090b", border: "1px solid #3f3f46", borderRadius: 12, color: "#f4f4f5" };
