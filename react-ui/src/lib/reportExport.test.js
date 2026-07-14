@@ -27,6 +27,9 @@ test("every scanner produces a populated source-neutral Adhoc workbook", async (
 
     assert.ok(dashboard, `${sourceId}: Adhoc Report sheet`);
     assert.ok(data, `${sourceId}: Report Data sheet`);
+    assert.ok(workbook.getWorksheet("Decision Intelligence"), `${sourceId}: Decision Intelligence sheet`);
+    assert.ok(workbook.getWorksheet("Remediation Campaigns"), `${sourceId}: Remediation Campaigns sheet`);
+    assert.equal(workbook.getWorksheet("Remediation Verification"), undefined, `${sourceId}: no comparison-only verification sheet`);
     assert.equal(data.actualRowCount, analysis.findings.length + 1, `${sourceId}: complete normalized rows`);
     assert.match(String(dashboard.getCell("A1").value), /Adhoc Vulnerability Report$/, sourceId);
     assert.doesNotMatch(String(dashboard.getCell("A1").value), /Adhoc Adhoc/, sourceId);
@@ -108,12 +111,20 @@ test("Unified monthly Excel and PDF contain combined analysis plus remediations"
   assert.equal(unified.getCell("A15").value, "Period");
   assert.equal(unified.getCell("A16").value, "April 2026");
   assert.equal(unified.getCell("B19").value, 40);
+  assert.ok(workbook.getWorksheet("Decision Intelligence"));
+  assert.ok(workbook.getWorksheet("Remediation Campaigns"));
+  assert.ok(workbook.getWorksheet("Remediation Verification"));
+  assert.equal(
+    analysis.dashboard.customerValueInsights.remediationCampaigns.campaigns.reduce((sum, campaign) => sum + campaign.findingCount, 0),
+    analysis.dashboard.totalOpenVulnerabilities.totalOpen,
+  );
+  assert.equal(analysis.dashboard.customerValueInsights.verification.reconciled, true);
 
   const markdown = buildTemplateMarkdown({ analysis, targetMonth: "July 2026" });
   const prompt = buildRemediationPrompt({ analysis, targetMonth: "July 2026" });
   assert.match(markdown, /## 1\. Portfolio Risk Overview/);
   assert.match(markdown, /## 2\. Trend Analysis/);
-  assert.match(markdown, /Cross-tool Confirmed/);
+  assert.match(markdown, /Multi-scanner Overlap/);
   assert.match(markdown, /Scanner Contribution/);
   assert.match(markdown, /## 3\. Remediation Actions/);
   assert.match(prompt, /Combined portfolio analytics for the selected reporting period/);

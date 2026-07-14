@@ -19,6 +19,7 @@ import { loadBundledSamples, loadUnifiedBundledSamples } from "../data/sampleFil
 import { AiReportBuilder } from "./AiReportBuilder.jsx";
 import { SourceCoveragePanel } from "./SourceCoveragePanel.jsx";
 import { UnifiedAnalysisDashboard } from "./UnifiedAnalysisDashboard.jsx";
+import { CustomerValueDashboards } from "./CustomerValueDashboards.jsx";
 
 const PRIORITY_COLORS = { P1: "#dc2626", P2: "#ea580c", P3: "#ca8a04", P4: "#16a34a" };
 const SEVERITY_COLORS = { Critical: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#22c55e", Info: "#0ea5e9", Unknown: "#64748b" };
@@ -168,6 +169,10 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
 
       <div className="mt-5">
         <SourceCoveragePanel dashboard={dashboard} inputSummary={analysis.snapshots.at(-1)?.inputSummary ?? analysis.inputSummary} />
+      </div>
+
+      <div className="mt-5">
+        <CustomerValueDashboards analysis={analysis} />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">

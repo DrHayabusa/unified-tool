@@ -1,4 +1,5 @@
 import { buildUnifiedInsights } from "./vulnerabilityEngine.js";
+import { buildCustomerValueInsights } from "./customerInsights.js";
 
 export function buildRemediationPrompt({ analysis, targetMonth }) {
   const findings = groupedPrioritizedFindings(analysis, targetMonth).slice(0, 60).map((group) => ({
@@ -8,6 +9,9 @@ export function buildRemediationPrompt({ analysis, targetMonth }) {
     cve: group.finding.cve || "N/A",
     severity: group.finding.severity,
     exploitAvailability: group.finding.exploitAvailable ? "Available" : "No known exploit",
+    cisaKev: Boolean(group.finding.cisaKev),
+    internetExposed: Boolean(group.finding.internetExposed),
+    epssScore: group.finding.epssScore,
     patchPriority: group.finding.patchPriority,
     product: group.finding.product || group.finding.platformDetails,
     remediation: dedupeSegments(group.finding.remediation),
@@ -19,6 +23,7 @@ export function buildRemediationPrompt({ analysis, targetMonth }) {
   const quarterly = analysis?.workflow === "quarterly";
   const periodName = quarterly ? "Quarter" : ["adhoc", "quarterly-scan"].includes(analysis?.workflow) ? "Period" : "Month";
   const summary = buildSelectedPeriodSummary(analysis, targetMonth, periodName);
+  const decisionIntelligence = buildSelectedDecisionContext(analysis, targetMonth);
 
   return `You are the MVA Remediation Guide generation engine. Return customer-ready Markdown only.
 
@@ -31,7 +36,7 @@ Create an industry-standard document with this exact document identity:
 
 Required structure:
 1. A clean Contents section.
-2. Portfolio Risk Overview with actionable counts, P1-P4 posture, cross-scanner confirmation, and source contribution when combined scanner analytics are supplied.
+2. Portfolio Risk Overview with actionable counts, P1-P4 posture, scanner overlap, and source contribution when combined scanner analytics are supplied.
 3. Trend Analysis with total open, new, patched, P1-P4, multi-scanner overlap, and single-scanner movement when historical analytics are supplied.
 4. Remediation Actions ordered P1, P2, P3, then P4.
 5. Group repeated findings by CVE or vulnerability name. For every action include affected finding count, example assets, CVE, severity, patch priority, reference links, prerequisites, numbered remediation steps, command examples, rollback, and validation.
@@ -45,6 +50,9 @@ ${JSON.stringify(summary, null, 2)}
 
 Combined portfolio analytics for the selected reporting period:
 ${JSON.stringify(portfolio, null, 2)}
+
+Decision intelligence for prioritization and remediation grouping:
+${JSON.stringify(decisionIntelligence, null, 2)}
 
 Prioritized normalized findings:
 ${JSON.stringify(findings, null, 2)}
@@ -89,9 +97,9 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
       `| Affected Assets | ${portfolio.distinctAssets} |`,
       `| Immediate Patch (P1 + P2) | ${portfolio.immediatePatch} |`,
       `| Exploit Available | ${portfolio.exploitAvailable} |`,
-      `| Cross-tool Confirmed | ${portfolio.crossToolConfirmed} |`,
+      `| Multi-scanner Overlap | ${portfolio.crossToolConfirmed} |`,
       `| Single-scanner Only | ${portfolio.singleSourceOnly} |`,
-      `| Confirmation Rate | ${portfolio.confirmationRate}% |`,
+      `| Overlap Rate | ${portfolio.confirmationRate}% |`,
       "",
       "### Patch Priority Posture",
       "",
@@ -104,7 +112,7 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
         "",
         "### Scanner Contribution",
         "",
-        "| Scanner | Observed | P1 + P2 | Exploit Available | Cross-tool Confirmed | Source-only |",
+        "| Scanner | Observed | P1 + P2 | Exploit Available | Multi-scanner Overlap | Scanner-only |",
         "| --- | ---: | ---: | ---: | ---: | ---: |",
         ...portfolio.sourceContribution.map((source) => `| ${source.sourceLabel} | ${source.openFindings} | ${source.immediatePatch} | ${source.exploitAvailable} | ${source.crossToolConfirmed} | ${source.exclusiveFindings} |`),
       );
@@ -434,6 +442,52 @@ function selectedReportFindings(analysis, targetMonth) {
   const comparison = isComparisonWorkflow(analysis);
   const selectedSnapshot = comparison ? analysis.snapshots?.find((snapshot) => snapshot.month === targetMonth) : null;
   return selectedSnapshot?.findings ?? (comparison ? analysis?.currentFindings ?? [] : analysis?.findings ?? []);
+}
+
+function buildSelectedDecisionContext(analysis, targetMonth) {
+  const findings = selectedReportFindings(analysis, targetMonth);
+  const targetIndex = analysis?.snapshots?.findIndex((snapshot) => snapshot.month === targetMonth || snapshot.period === targetMonth) ?? -1;
+  const snapshots = targetIndex >= 0 ? analysis.snapshots.slice(0, targetIndex + 1) : [];
+  const selectedSnapshot = targetIndex >= 0 ? analysis.snapshots[targetIndex] : null;
+  const insights = buildCustomerValueInsights(findings, { snapshots, reportDate: selectedSnapshot?.reportDate });
+  return {
+    threatPriority: {
+      reviewQueue: insights.threatPriority.reviewQueue,
+      cisaKev: insights.threatPriority.cisaKev,
+      exploitAvailable: insights.threatPriority.exploitAvailable,
+      internetExposed: insights.threatPriority.internetExposed,
+      epssAbove50: insights.threatPriority.epssAbove50,
+      provisionalSsvc: insights.threatPriority.ssvcCounts,
+      interpretationBoundary: insights.threatPriority.contextNotice,
+    },
+    remediationCampaigns: insights.remediationCampaigns.campaigns.slice(0, 15).map((campaign) => ({
+      priority: campaign.primaryPriority,
+      vulnerability: campaign.title,
+      cve: campaign.cve || "N/A",
+      findings: campaign.findingCount,
+      assets: campaign.assets.length,
+      action: campaign.action,
+      references: campaign.references,
+    })),
+    verification: {
+      available: insights.verification.available,
+      previousPeriod: insights.verification.previousPeriod,
+      currentPeriod: insights.verification.currentPeriod,
+      persistent: insights.verification.persistent,
+      newFindings: insights.verification.newFindings,
+      reappeared: insights.verification.reappeared,
+      noLongerObserved: insights.verification.noLongerObserved,
+      previousTotal: insights.verification.previousTotal,
+      currentTotal: insights.verification.currentTotal,
+      reconciled: insights.verification.reconciled,
+    },
+    dataQuality: {
+      evidenceCompleteness: insights.dataQuality.evidenceCompleteness,
+      completeCore: insights.dataQuality.completeCore,
+      staleObservations: insights.dataQuality.staleObservations,
+      missingFields: insights.dataQuality.issues,
+    },
+  };
 }
 
 function buildSelectedPeriodSummary(analysis, targetMonth, periodName) {

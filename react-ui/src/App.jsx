@@ -16,6 +16,7 @@ import { ThreatIntelPanel } from "./components/ThreatIntelPanel.jsx";
 import { UploadPanel } from "./components/UploadPanel.jsx";
 import { SourceCoveragePanel } from "./components/SourceCoveragePanel.jsx";
 import { UnifiedAnalysisDashboard } from "./components/UnifiedAnalysisDashboard.jsx";
+import { CustomerValueDashboards } from "./components/CustomerValueDashboards.jsx";
 import { implementedSourceTools, sourceTools, unifiedSourceTool } from "./data/dashboardData.js";
 import { analyzeAdhocFiles, analyzeMonthlyFiles, analyzeQuarterlyScan } from "./lib/vulnerabilityEngine.js";
 
@@ -203,6 +204,7 @@ export default function App() {
                         <MetricsRow dashboard={adhocAnalysis.dashboard} />
                         <UnifiedAnalysisDashboard dashboard={adhocAnalysis.dashboard} />
                         <SourceCoveragePanel dashboard={adhocAnalysis.dashboard} inputSummary={adhocAnalysis.inputSummary} />
+                        <CustomerValueDashboards analysis={adhocAnalysis} />
                         <TrendPanel dashboard={adhocAnalysis.dashboard} />
                         <div className="grid gap-5 xl:grid-cols-[1fr_1fr] 2xl:grid-cols-[1.1fr_1fr]">
                           <FieldMappingPanel source={selectedSource} exportType={adhocAnalysis.exportType} />
@@ -240,6 +242,7 @@ export default function App() {
                         <MetricsRow dashboard={quarterlyAnalysis.dashboard} />
                         <UnifiedAnalysisDashboard dashboard={quarterlyAnalysis.dashboard} />
                         <SourceCoveragePanel dashboard={quarterlyAnalysis.dashboard} inputSummary={quarterlyAnalysis.inputSummary} />
+                        <CustomerValueDashboards analysis={quarterlyAnalysis} />
                         <QuarterlyTrendPanel dashboard={quarterlyAnalysis.dashboard} />
                         <TrendPanel dashboard={quarterlyAnalysis.dashboard} />
                         <div className="grid gap-5 xl:grid-cols-[1fr_1fr] 2xl:grid-cols-[1.1fr_1fr]">
