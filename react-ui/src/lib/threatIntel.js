@@ -93,7 +93,7 @@ export function normalizeThreatIntel(value, source = "Threat intelligence servic
     patches: toList(data.patches || data.patch || data.mitigations),
     remediationSteps: toList(data.remediationSteps || data.remediation || data.solution),
     detectionSteps: toList(data.detectionSteps || data.validationSteps || data.validation),
-    references: toList(data.references || data.links).filter((item) => /^https:\/\//i.test(item)),
+    references: toReferences(data.references || data.links),
     matchedFindings: Number(data.matchedFindings) || 0,
     affectedAssetCount: Number(data.affectedAssetCount) || 0,
     affectedAssets: toList(data.affectedAssets || data.assets),
@@ -144,8 +144,38 @@ function unique(values) {
 }
 
 function toList(value) {
-  if (Array.isArray(value)) return unique(value.map((item) => String(item).trim()));
-  return unique(String(value || "").split(/\r?\n|\s*\|\s*|\s*;\s*/).map((item) => item.replace(/^[-*]\s*/, "").trim()));
+  const values = Array.isArray(value) ? value : [value];
+  return unique(values.flatMap((item) => {
+    if (item && typeof item === "object") return [structuredListItem(item)].filter(Boolean);
+    return String(item || "").split(/\r?\n|\s*\|\s*|\s*;\s*/).map((entry) => entry.replace(/^[-*]\s*/, "").trim());
+  }));
+}
+
+function structuredListItem(value) {
+  const preferredKeys = ["title", "name", "patch", "version", "id", "action", "description", "details", "notes", "url", "link"];
+  const parts = preferredKeys
+    .filter((key) => value[key] !== undefined && value[key] !== null && value[key] !== "")
+    .map((key) => String(value[key]).trim())
+    .filter(Boolean);
+  if (parts.length) return unique(parts).join(" - ");
+  return Object.entries(value)
+    .filter(([, entry]) => ["string", "number", "boolean"].includes(typeof entry))
+    .map(([key, entry]) => `${humanizeKey(key)}: ${String(entry).trim()}`)
+    .join("; ");
+}
+
+function toReferences(value) {
+  const values = Array.isArray(value) ? value : [value];
+  return unique(values.flatMap((item) => {
+    if (item && typeof item === "object") {
+      return [item.url, item.link, item.href, item.reference].filter((entry) => typeof entry === "string");
+    }
+    return String(item || "").split(/\r?\n|\s*\|\s*|\s*;\s*/);
+  }).map((item) => item.trim()).filter((item) => /^https:\/\//i.test(item)));
+}
+
+function humanizeKey(value) {
+  return String(value).replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
 }
 
 function earliestDate(values) {
