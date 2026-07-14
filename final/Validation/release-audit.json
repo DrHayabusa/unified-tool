@@ -4,13 +4,13 @@
     "workbooks": 4,
     "pdfs": 4,
     "sample_csvs": 21,
-    "screenshots": 19
+    "screenshots": 20
   },
   "actual_counts": {
     "workbooks": 4,
     "pdfs": 4,
     "sample_csvs": 21,
-    "screenshots": 19
+    "screenshots": 20
   },
   "workbooks": [
     {
@@ -21,16 +21,81 @@
         "Adhoc Dashboard"
       ],
       "lane_matches": 0,
-      "formula_errors": 0
+      "formula_errors": 0,
+      "charts": {
+        "Executive Dashboard": [
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Discovered"
+          },
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Remediated"
+          },
+          {
+            "type": "BarChart",
+            "title": "Patch Priority Distribution"
+          }
+        ],
+        "Monthly Dashboard": [
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Discovered"
+          },
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Remediated"
+          }
+        ],
+        "Adhoc Dashboard": [
+          {
+            "type": "BarChart",
+            "title": "Top 10 Affected Assets"
+          }
+        ]
+      }
     },
     {
       "file": "MVA_Qualys_Final_Report.xlsx",
       "sheets": [
-        "Monthly Report",
-        "Report Data"
+        "Executive Dashboard",
+        "Monthly Dashboard",
+        "Adhoc Dashboard"
       ],
       "lane_matches": 0,
-      "formula_errors": 0
+      "formula_errors": 0,
+      "charts": {
+        "Executive Dashboard": [
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Discovered"
+          },
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Remediated"
+          },
+          {
+            "type": "BarChart",
+            "title": "Patch Priority Distribution"
+          }
+        ],
+        "Monthly Dashboard": [
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Discovered"
+          },
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Remediated"
+          }
+        ],
+        "Adhoc Dashboard": [
+          {
+            "type": "BarChart",
+            "title": "Top 10 Affected Assets"
+          }
+        ]
+      }
     },
     {
       "file": "MVA_Tenable_IO_Final_Report.xlsx",
@@ -40,7 +105,39 @@
         "Adhoc Dashboard"
       ],
       "lane_matches": 0,
-      "formula_errors": 0
+      "formula_errors": 0,
+      "charts": {
+        "Executive Dashboard": [
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Discovered"
+          },
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Remediated"
+          },
+          {
+            "type": "BarChart",
+            "title": "Patch Priority Distribution"
+          }
+        ],
+        "Monthly Dashboard": [
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Discovered"
+          },
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Remediated"
+          }
+        ],
+        "Adhoc Dashboard": [
+          {
+            "type": "BarChart",
+            "title": "Top 10 Affected Assets"
+          }
+        ]
+      }
     },
     {
       "file": "MVA_Tenable_SC_Final_Report.xlsx",
@@ -50,7 +147,39 @@
         "Adhoc Dashboard"
       ],
       "lane_matches": 0,
-      "formula_errors": 0
+      "formula_errors": 0,
+      "charts": {
+        "Executive Dashboard": [
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Discovered"
+          },
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Remediated"
+          },
+          {
+            "type": "BarChart",
+            "title": "Patch Priority Distribution"
+          }
+        ],
+        "Monthly Dashboard": [
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Discovered"
+          },
+          {
+            "type": "LineChart",
+            "title": "Vulnerabilities Remediated"
+          }
+        ],
+        "Adhoc Dashboard": [
+          {
+            "type": "BarChart",
+            "title": "Top 10 Affected Assets"
+          }
+        ]
+      }
     }
   ],
   "pdfs": [

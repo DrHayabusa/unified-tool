@@ -12,18 +12,21 @@ import {
   YAxis,
 } from "recharts";
 import { useState } from "react";
-import { BrainCircuit, CalendarRange, Download, FileSpreadsheet, Table2, UploadCloud } from "lucide-react";
+import { ArrowLeft, BrainCircuit, CalendarRange, Download, FileSpreadsheet, FileText, RefreshCcw, Table2, Trash2, UploadCloud, X } from "lucide-react";
 import { AGE_BUCKETS, extractMonthFromFilename } from "../lib/vulnerabilityEngine.js";
 import { downloadAnalysisWorkbook, downloadNormalizedCsv } from "../lib/reportExport.js";
+import { isSupportedUploadFile, mergeUploadFiles, removeUploadFile, uploadFileKey } from "../lib/uploadFiles.js";
 import { loadBundledSamples } from "../data/sampleFiles.js";
 import { AiReportBuilder } from "./AiReportBuilder.jsx";
 
 const PRIORITY_COLORS = { P1: "#dc2626", P2: "#ea580c", P3: "#ca8a04", P4: "#16a34a" };
 const SEVERITY_COLORS = { Critical: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#22c55e", Info: "#0ea5e9", Unknown: "#64748b" };
 
-export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selectedMonth, onMonthChange }) {
+export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selectedMonth, onMonthChange, files, onFilesChange, onEditUploads, onResetUploads, onBackToDashboard }) {
   const [exportStatus, setExportStatus] = useState({ state: "idle", message: "" });
-  if (!analysis) return <MonthlyUploadGate selectedSource={selectedSource} onAnalyze={onAnalyze} />;
+  if (!analysis) {
+    return <MonthlyUploadGate key={selectedSource.id} selectedSource={selectedSource} onAnalyze={onAnalyze} files={files} onFilesChange={onFilesChange} onResetUploads={onResetUploads} onBackToDashboard={onBackToDashboard} />;
+  }
 
   const dashboard = analysis.dashboard;
   const monthOptions = dashboard.uploadedMonths;
@@ -67,9 +70,17 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
         <div>
           <p className="mini-label text-emerald-300">Monthly Comparison Report</p>
           <h2 className="mt-1 text-2xl font-black text-white">{dashboard.reportRange}</h2>
-          <p className="mt-1 text-sm font-semibold text-slate-400">{analysis.sourceLabel} | {analysis.snapshots.length} validated monthly CSV exports</p>
+          <p className="mt-1 text-sm font-semibold text-slate-400">{analysis.sourceLabel} | {analysis.snapshots.length} validated monthly CSV/XLSX exports</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={onBackToDashboard} className="ghost-button flex items-center gap-2 py-3">
+            <ArrowLeft className="h-4 w-4" />
+            Dashboard
+          </button>
+          <button type="button" onClick={onEditUploads} className="ghost-button flex items-center gap-2 py-3">
+            <RefreshCcw className="h-4 w-4" />
+            Edit Monthly Files
+          </button>
           <button type="button" onClick={downloadExcel} disabled={exportStatus.state === "loading"} className="ghost-button flex items-center gap-2 py-3 disabled:cursor-wait disabled:opacity-50">
             <Download className="h-4 w-4" />
             {exportStatus.state === "loading" ? "Building Excel..." : "Download Excel Report"}
@@ -209,21 +220,33 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
   );
 }
 
-function MonthlyUploadGate({ selectedSource, onAnalyze }) {
-  const [files, setFiles] = useState([]);
-  const [status, setStatus] = useState({ state: "idle", message: "Select at least two monthly CSV exports." });
+function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChange, onResetUploads, onBackToDashboard }) {
+  const [status, setStatus] = useState(() => selectionStatus(files.length));
+  const [sampleVariant, setSampleVariant] = useState("vulnerability-per-asset");
   const detectedMonths = files.map((file) => extractMonthFromFilename(file.name)?.label).filter(Boolean);
   const canAnalyze = files.length >= 2;
 
   const selectFiles = (fileList) => {
-    const nextFiles = Array.from(fileList ?? []);
-    const invalid = nextFiles.find((file) => !file.name.toLowerCase().endsWith(".csv"));
+    const incomingFiles = Array.from(fileList ?? []);
+    const invalid = incomingFiles.find((file) => !isSupportedUploadFile(file));
     if (invalid) {
-      setStatus({ state: "error", message: `${invalid.name} is not a CSV file.` });
+      setStatus({ state: "error", message: `${invalid.name} is not supported. Upload CSV or XLSX.` });
       return;
     }
-    setFiles(nextFiles);
-    setStatus({ state: nextFiles.length >= 2 ? "ready" : "error", message: nextFiles.length >= 2 ? `${nextFiles.length} monthly reports ready.` : "Select at least two monthly CSV exports." });
+    const mergedFiles = mergeUploadFiles(files, incomingFiles);
+    onFilesChange?.(mergedFiles);
+    setStatus(selectionStatus(mergedFiles.length));
+  };
+
+  const removeFile = (file) => {
+    const remainingFiles = removeUploadFile(files, file);
+    onFilesChange?.(remainingFiles);
+    setStatus(selectionStatus(remainingFiles.length));
+  };
+
+  const clearFiles = () => {
+    onResetUploads?.();
+    setStatus(selectionStatus(0));
   };
 
   const analyze = async () => {
@@ -240,7 +263,7 @@ function MonthlyUploadGate({ selectedSource, onAnalyze }) {
   const loadSamples = async () => {
     setStatus({ state: "loading", message: `Loading four real ${selectedSource.name} sample CSVs...` });
     try {
-      const samples = await loadBundledSamples(selectedSource.id, "monthly");
+      const samples = await loadBundledSamples(selectedSource.id, "monthly", sampleVariant);
       selectFiles(samples);
     } catch (error) {
       setStatus({ state: "error", message: error.message || "Sample loading failed." });
@@ -250,24 +273,66 @@ function MonthlyUploadGate({ selectedSource, onAnalyze }) {
   return (
     <section className="cyber-panel rounded-[1.75rem] p-5">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div><p className="mini-label">Monthly Data Comparison</p><h2 className="mt-1 text-2xl font-black text-white">Upload monthly exports</h2><p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Choose two or more {selectedSource.name} CSVs. Tenable.sc and Tenable.io can be mixed; CrowdStrike monthly comparison uses Vulnerabilities or Vulnerability per asset exports.</p></div>
-        <span className={`rounded-full border px-4 py-2 text-sm font-bold ${canAnalyze ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-200" : "border-white/10 bg-white/5 text-slate-400"}`}>{files.length ? `${files.length} reports selected` : "No reports selected"}</span>
+        <div><p className="mini-label">Monthly Data Comparison</p><h2 className="mt-1 text-2xl font-black text-white">Upload monthly exports</h2><p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Choose two or more {selectedSource.name} CSV or XLSX files. Tenable.sc and Tenable.io can be mixed; CrowdStrike monthly comparison uses Vulnerabilities or Vulnerability per asset exports.</p></div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={onBackToDashboard} className="ghost-button flex items-center gap-2 py-2.5">
+            <ArrowLeft className="h-4 w-4" />
+            Dashboard
+          </button>
+          <span className={`rounded-full border px-4 py-2 text-sm font-bold ${canAnalyze ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-200" : "border-white/10 bg-white/5 text-slate-400"}`}>{files.length ? `${files.length} reports selected` : "No reports selected"}</span>
+        </div>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
         <div>
           <label className="group grid min-h-64 cursor-pointer place-items-center rounded-3xl border border-dashed border-white/20 bg-slate-950/50 p-8 text-center transition hover:border-emerald-300/45 hover:bg-emerald-400/5" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); selectFiles(event.dataTransfer.files); }}>
-            <input className="sr-only" type="file" accept=".csv,text/csv" multiple onChange={(event) => selectFiles(event.target.files)} />
+            <input className="sr-only" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple onChange={(event) => { selectFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
             <UploadCloud className="mb-4 h-16 w-16 text-slate-300 transition group-hover:text-emerald-300" />
-            <p className="text-lg font-black text-white">Drop all monthly CSVs here or click once to browse</p>
-            <p className="mt-2 text-sm font-semibold text-slate-500">Use filenames containing Month YYYY for reliable ordering.</p>
+            <p className="text-lg font-black text-white">Drop one or more monthly CSV/XLSX files here</p>
+            <p className="mt-2 text-sm font-semibold text-slate-500">Add files across separate drops or browse actions. Existing selections stay in place.</p>
           </label>
-          {files.length > 0 && <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4"><div className="flex flex-wrap gap-2">{files.map((file) => <span key={file.name} className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-100">{extractMonthFromFilename(file.name)?.label ?? file.name}</span>)}</div></div>}
+          {files.length > 0 && (
+            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-white">Selected monthly reports</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">Matching filenames are replaced; every other report is added.</p>
+                </div>
+                <button type="button" onClick={clearFiles} className="flex items-center gap-2 rounded-xl border border-red-300/20 bg-red-400/10 px-3 py-2 text-xs font-black text-red-200 transition hover:bg-red-400/20">
+                  <Trash2 className="h-4 w-4" />
+                  Clear all
+                </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {files.map((file) => (
+                  <article key={uploadFileKey(file)} className="flex min-w-0 items-center gap-3 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] p-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-200"><FileText className="h-5 w-5" /></span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black uppercase tracking-wide text-cyan-200">{extractMonthFromFilename(file.name)?.label ?? "Month detected during analysis"}</p>
+                      <p className="mt-1 truncate text-xs font-semibold text-slate-400" title={file.name}>{file.name}</p>
+                    </div>
+                    <button type="button" onClick={() => removeFile(file)} aria-label={`Remove ${file.name}`} title={`Remove ${file.name}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 text-slate-400 transition hover:border-red-300/30 hover:bg-red-400/10 hover:text-red-200"><X className="h-4 w-4" /></button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
+          {selectedSource.id === "crowdstrike" && (
+            <label className="mt-4 block rounded-2xl border border-red-300/15 bg-red-400/5 p-4">
+              <span className="mb-2 block text-xs font-black uppercase tracking-wide text-red-200">CrowdStrike monthly export type</span>
+              <select value={sampleVariant} onChange={(event) => setSampleVariant(event.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-3 text-sm font-bold text-slate-200 outline-none">
+                <option value="vulnerabilities">Vulnerabilities</option>
+                <option value="vulnerability-per-asset">Vulnerability per asset</option>
+                <option value="remediation-per-assets" disabled>Remediation per assets (Adhoc only)</option>
+              </select>
+              <p className="mt-3 font-mono text-xs font-semibold text-slate-400">Filename: {crowdStrikeFilenameExample(sampleVariant)}</p>
+            </label>
+          )}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <button type="button" onClick={loadSamples} disabled={status.state === "loading"} className="ghost-button disabled:cursor-not-allowed disabled:opacity-45">Load 4-Month Test Pack</button>
             <button type="button" onClick={analyze} disabled={!canAnalyze || status.state === "loading"} className="neon-button disabled:cursor-not-allowed disabled:opacity-45">{status.state === "loading" ? "Analyzing Monthly Reports..." : "Analyze & Generate Monthly Report"}</button>
           </div>
-          <p className={`mt-3 rounded-xl border px-4 py-3 text-xs font-bold ${status.state === "error" ? "border-red-300/25 bg-red-400/10 text-red-100" : "border-white/10 bg-white/5 text-slate-400"}`}>{status.message}</p>
+          <p className={`mt-3 rounded-xl border px-4 py-3 text-xs font-bold ${status.state === "error" ? "border-red-300/25 bg-red-400/10 text-red-100" : status.state === "ready" ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/5 text-slate-400"}`}>{status.message}</p>
         </div>
         <div className="grid gap-4">
           <Requirement title="2+ Monthly Reports" body="Calculates total open, new, not closed, and patched findings." />
@@ -278,6 +343,18 @@ function MonthlyUploadGate({ selectedSource, onAnalyze }) {
       </div>
     </section>
   );
+}
+
+function selectionStatus(fileCount) {
+  if (fileCount === 0) return { state: "idle", message: "Select at least two monthly CSV or XLSX exports." };
+  if (fileCount === 1) return { state: "idle", message: "1 monthly report selected. Add one more report to compare." };
+  return { state: "ready", message: `${fileCount} monthly reports ready. You can add or remove files before analysis.` };
+}
+
+function crowdStrikeFilenameExample(variant) {
+  if (variant === "vulnerabilities") return "crowdstrike_vulnerabilities_july_2026.csv";
+  if (variant === "remediation-per-assets") return "crowdstrike_remediation_per_assets_july_2026.csv";
+  return "crowdstrike_vulnerability_per_asset_july_2026.csv";
 }
 
 function Kpi({ label, value, helper, color }) {

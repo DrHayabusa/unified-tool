@@ -224,7 +224,7 @@ export function AiReportBuilder({ analysis, selectedMonth, onMonthChange, monthO
 
         <ProviderNotice provider={provider} />
 
-        {!compact && <p className="flex items-start gap-2 text-xs font-semibold leading-5 text-slate-500"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />CSV parsing, month comparison, priority scoring, and dashboards stay local. An AI request contains only the selected dashboard summary and up to 80 prioritized normalized findings.</p>}
+        {!compact && <p className="flex items-start gap-2 text-xs font-semibold leading-5 text-slate-500"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />CSV/XLSX parsing, month comparison, priority scoring, and dashboards stay local. An AI request contains only the selected dashboard summary and up to 80 prioritized normalized findings.</p>}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={testConnectivity} disabled={connectionBusy || reportBusy} className="ghost-button flex items-center justify-center gap-2 disabled:cursor-wait disabled:opacity-50"><Wifi className="h-4 w-4" />{connectionBusy ? "Testing..." : "Test Provider"}</button>

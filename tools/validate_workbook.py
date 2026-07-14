@@ -13,6 +13,19 @@ from openpyxl import load_workbook
 
 ERROR_PATTERN = re.compile(r"#(?:REF!|DIV/0!|VALUE!|NAME\?|N/A)", re.IGNORECASE)
 LANE_PATTERN = re.compile(r"\blane\b", re.IGNORECASE)
+REQUIRED_TREND_TITLES = {"Vulnerabilities Discovered", "Vulnerabilities Remediated"}
+
+
+def chart_title(chart: object) -> str:
+    """Extract an embedded chart title without relying on private XML parsing."""
+    title = getattr(chart, "title", None)
+    rich = getattr(getattr(title, "tx", None), "rich", None)
+    paragraphs = getattr(rich, "p", []) or []
+    return "".join(
+        getattr(run, "t", "") or ""
+        for paragraph in paragraphs
+        for run in (getattr(paragraph, "r", []) or [])
+    )
 
 
 def validate(input_path: Path, output_dir: Path, required_sheets: list[str]) -> dict:
@@ -21,6 +34,7 @@ def validate(input_path: Path, output_dir: Path, required_sheets: list[str]) -> 
     formula_errors: list[dict[str, str]] = []
     lane_matches: list[dict[str, str]] = []
     sheet_summary: list[dict[str, object]] = []
+    missing_trend_charts: list[dict[str, object]] = []
 
     for sheet in formulas.worksheets:
         cached_sheet = cached[sheet.title]
@@ -40,6 +54,19 @@ def validate(input_path: Path, output_dir: Path, required_sheets: list[str]) -> 
                 if LANE_PATTERN.search(text):
                     lane_matches.append({"address": f"{sheet.title}!{cell.coordinate}", "value": text})
 
+        chart_inventory = [
+            {"type": type(chart).__name__, "title": chart_title(chart)} for chart in sheet._charts
+        ]
+        line_chart_titles = {
+            chart["title"] for chart in chart_inventory if chart["type"] == "LineChart"
+        }
+        if sheet.title in {"Executive Dashboard", "Monthly Dashboard"}:
+            missing_titles = sorted(REQUIRED_TREND_TITLES - line_chart_titles)
+            if missing_titles:
+                missing_trend_charts.append(
+                    {"sheet": sheet.title, "missingTitles": missing_titles}
+                )
+
         sheet_summary.append(
             {
                 "name": sheet.title,
@@ -47,6 +74,7 @@ def validate(input_path: Path, output_dir: Path, required_sheets: list[str]) -> 
                 "columns": sheet.max_column,
                 "mergedRanges": len(sheet.merged_cells.ranges),
                 "frozenAt": str(sheet.freeze_panes or ""),
+                "charts": chart_inventory,
             }
         )
 
@@ -56,6 +84,7 @@ def validate(input_path: Path, output_dir: Path, required_sheets: list[str]) -> 
         "required_sheets_present": not missing_sheets,
         "formula_errors_absent": not formula_errors,
         "obsolete_lane_absent": not lane_matches,
+        "required_line_charts_present": not missing_trend_charts,
     }
     result = {
         "input": str(input_path),
@@ -66,6 +95,7 @@ def validate(input_path: Path, output_dir: Path, required_sheets: list[str]) -> 
         "missingSheets": missing_sheets,
         "formulaErrors": formula_errors,
         "obsoleteLaneMatches": lane_matches,
+        "missingTrendCharts": missing_trend_charts,
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "validation.json").write_text(json.dumps(result, indent=2), encoding="utf-8")

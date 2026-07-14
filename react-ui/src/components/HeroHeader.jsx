@@ -23,11 +23,11 @@ export function HeroHeader() {
             <span className="mini-label">Command Center</span>
             <span className="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_20px_rgba(52,211,153,.85)]" />
           </div>
-          <h1 className="max-w-4xl text-5xl font-black tracking-[-0.06em] text-white md:text-7xl">
-            MVA Vulnerability Agent
+          <h1 className="max-w-5xl text-5xl font-black tracking-[-0.06em] text-white md:text-7xl">
+            Unified Reporting and Remediation
           </h1>
           <p className="mt-4 max-w-2xl text-lg font-semibold text-slate-400">
-            Unified vulnerability intake and remediation cockpit
+            MVA vulnerability intake, comparison, and AI-guided remediation cockpit
           </p>
         </div>
 

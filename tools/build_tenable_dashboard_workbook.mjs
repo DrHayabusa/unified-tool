@@ -197,25 +197,44 @@ function buildMonthlySheet(sheet, dashboard, sourceLabel) {
   kpiCard(sheet, "G4:I7", "NOT CLOSED", open.not_closed_from_previous_months, "Still open from previous report", PRIORITY_COLORS.P2);
   kpiCard(sheet, "J4:L7", "PATCHED LAST MONTH", patched.patched_count, "Closed since previous report", PRIORITY_COLORS.P4);
 
-  sectionTitle(sheet, "A9:C9", "Trend of Vulnerabilities Discovered in Last 3 Months");
-  table(sheet, "A10:B13", [
-    ["Month", "Discovered"],
-    ...dashboard.trend_discovered_last_3_months.map((row) => [
+  const discoveredTrend = dashboard.trend_discovered_last_3_months;
+  const remediatedTrend = dashboard.trend_remediated_last_3_months ?? [];
+  const remediatedByMonth = Object.fromEntries(remediatedTrend.map((row) => [row.month, row.remediated_count]));
+
+  sectionTitle(sheet, "A9:C9", "Vulnerability Trend - Last 3 Months");
+  table(sheet, "A10:C13", [
+    ["Month", "Discovered", "Remediated"],
+    ...discoveredTrend.map((row) => [
       row.month,
       row.discovered_count,
+      remediatedByMonth[row.month] ?? 0,
     ]),
   ]);
 
-  const trendChart = sheet.charts.add("line", sheet.getRange("A10:B13"));
-  const maxDiscovered = Math.max(...dashboard.trend_discovered_last_3_months.map((row) => Number(row.discovered_count) || 0), 1);
-  trendChart.title = "Discovered Vulnerabilities - Last 3 Months";
-  trendChart.hasLegend = false;
-  trendChart.xAxis = { axisType: "textAxis" };
-  trendChart.yAxis = { min: 0, max: Math.ceil(maxDiscovered * 1.2), numberFormatCode: "#,##0" };
-  if (trendChart.series.items[0]) {
-    trendChart.series.items[0].fill = TREND_BLUE;
+  const discoveredChart = sheet.charts.add("line", sheet.getRange("A10:B13"));
+  const maxDiscovered = Math.max(...discoveredTrend.map((row) => Number(row.discovered_count) || 0), 1);
+  discoveredChart.title = "Vulnerabilities Discovered";
+  discoveredChart.hasLegend = false;
+  discoveredChart.xAxis = { axisType: "textAxis" };
+  discoveredChart.yAxis = { min: 0, max: Math.ceil(maxDiscovered * 1.2), numberFormatCode: "#,##0" };
+  if (discoveredChart.series.items[0]) {
+    discoveredChart.series.items[0].fill = TREND_BLUE;
   }
-  trendChart.setPosition("E9", "L19");
+  discoveredChart.setPosition("D9", "H19");
+
+  const remediatedChart = sheet.charts.add("line", {
+    chartType: "line",
+    title: "Vulnerabilities Remediated",
+    hasLegend: false,
+  });
+  const remediatedSeries = remediatedChart.series.add("Remediated");
+  remediatedSeries.categoryFormula = "'Monthly Dashboard'!$A$11:$A$13";
+  remediatedSeries.formula = "'Monthly Dashboard'!$C$11:$C$13";
+  remediatedSeries.fill = PRIORITY_COLORS.P4;
+  const maxRemediated = Math.max(...discoveredTrend.map((row) => Number(remediatedByMonth[row.month]) || 0), 1);
+  remediatedChart.xAxis = { axisType: "textAxis" };
+  remediatedChart.yAxis = { min: 0, max: Math.ceil(maxRemediated * 1.2), numberFormatCode: "#,##0" };
+  remediatedChart.setPosition("I9", "L19");
 
   sectionTitle(sheet, "A21:L21", "Total Open Vulnerabilities by Patch Priority");
   const priorityEntries = Object.entries(dashboard.total_open_by_patch_priority);

@@ -36,7 +36,7 @@ const FINDING_COLUMNS = [
 ];
 
 export async function downloadAnalysisWorkbook(analysis) {
-  if (!analysis) throw new Error("Analyze CSV data before generating the Excel report.");
+  if (!analysis) throw new Error("Analyze an export before generating the Excel report.");
   const { default: ExcelJS } = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "MVA Unified Agent";
@@ -44,7 +44,7 @@ export async function downloadAnalysisWorkbook(analysis) {
   workbook.modified = new Date();
   workbook.subject = `${analysis.sourceLabel} vulnerability report`;
 
-  if (analysis.workflow === "monthly") buildMonthlySheet(workbook, analysis);
+  if (analysis.workflow === "monthly") await buildMonthlySheet(workbook, analysis);
   else buildAdhocSheet(workbook, analysis);
   buildFindingsSheet(workbook, analysis.workflow === "monthly" ? analysis.currentFindings : analysis.findings);
 
@@ -54,7 +54,7 @@ export async function downloadAnalysisWorkbook(analysis) {
 }
 
 export function downloadNormalizedCsv(analysis) {
-  if (!analysis) throw new Error("Analyze CSV data before downloading normalized findings.");
+  if (!analysis) throw new Error("Analyze an export before downloading normalized findings.");
   const findings = analysis.workflow === "monthly" ? analysis.currentFindings : analysis.findings;
   const rows = [FINDING_COLUMNS.map(([header]) => header)];
   for (const finding of findings) {
@@ -64,7 +64,7 @@ export function downloadNormalizedCsv(analysis) {
   saveBlob(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }), `MVA_${safeName(analysis.sourceLabel)}_Normalized_Findings.csv`);
 }
 
-function buildMonthlySheet(workbook, analysis) {
+async function buildMonthlySheet(workbook, analysis) {
   const sheet = workbook.addWorksheet("Monthly Report", { views: [{ state: "frozen", ySplit: 3, showGridLines: false }] });
   const dashboard = analysis.dashboard;
   const open = dashboard.totalOpenVulnerabilities;
@@ -77,27 +77,29 @@ function buildMonthlySheet(workbook, analysis) {
   kpi(sheet, "G4:I7", "NOT CLOSED", open.notClosedFromPreviousMonths, "Carried from previous report", COLORS.high);
   kpi(sheet, "J4:L7", "PATCHED LAST MONTH", patched.patchedCount, `${patched.previousMonth} to ${patched.currentMonth}`, COLORS.low);
 
-  section(sheet, "A9:F9", "1. Vulnerabilities Discovered - Last 3 Months");
-  writeTable(sheet, 10, 1, ["Month", "Discovered"], dashboard.trendDiscoveredLast3Months.map((row) => [row.month, row.discoveredCount]));
-  sparkBars(sheet, 10, 4, dashboard.trendDiscoveredLast3Months.map((row) => [row.month, row.discoveredCount]), "0284C7");
-
-  section(sheet, "G9:L9", "2. Total Open Vulnerabilities");
-  writeTable(sheet, 10, 7, ["Measure", "Count"], [
-    ["Total Open", open.totalOpen],
-    ["New Vulnerabilities", open.newVulnerabilities],
-    ["Not Closed", open.notClosedFromPreviousMonths],
-  ]);
-
-  section(sheet, "A16:L16", "3. Total Open by Patch Priority");
-  ["P1", "P2", "P3", "P4"].forEach((priority, index) => {
-    const start = 1 + index * 3;
-    kpi(sheet, `${column(start)}17:${column(start + 2)}20`, priority, dashboard.totalOpenByPatchPriority[priority], "Open findings", COLORS[priority]);
-  });
-
-  section(sheet, "A22:F22", "4. Total Open by Age and Patch Priority");
+  const discoveredTrend = dashboard.trendDiscoveredLast3Months.map((row) => ({ label: row.month, value: row.discoveredCount }));
+  const remediatedTrend = dashboard.trendRemediatedLast3Months.map((row) => ({ label: row.month, value: row.remediatedCount }));
+  section(sheet, "A9:C9", "Vulnerability Trend - Last 3 Months");
   writeTable(
     sheet,
-    23,
+    10,
+    1,
+    ["Month", "Discovered", "Remediated"],
+    discoveredTrend.map((row, index) => [row.label, row.value, remediatedTrend[index]?.value ?? 0]),
+  );
+  await addLineChartImage(workbook, sheet, discoveredTrend, "Vulnerabilities Discovered", "#2563EB", { col: 3, row: 8, width: 490, height: 220 });
+  await addLineChartImage(workbook, sheet, remediatedTrend, "Vulnerabilities Remediated", "#16A34A", { col: 8, row: 8, width: 390, height: 220 });
+
+  section(sheet, "A21:L21", "Total Open by Patch Priority");
+  ["P1", "P2", "P3", "P4"].forEach((priority, index) => {
+    const start = 1 + index * 3;
+    kpi(sheet, `${column(start)}22:${column(start + 2)}25`, priority, dashboard.totalOpenByPatchPriority[priority], "Open findings", COLORS[priority]);
+  });
+
+  section(sheet, "A27:F27", "Total Open by Age and Patch Priority");
+  writeTable(
+    sheet,
+    28,
     1,
     ["Patch Priority", ">7 days", ">30 days", ">60 days", ">180 days"],
     ["P1", "P2", "P3", "P4"].map((priority) => [
@@ -110,18 +112,18 @@ function buildMonthlySheet(workbook, analysis) {
     true,
   );
 
-  section(sheet, "G22:L22", "5. Vulnerabilities Patched in Last Month");
-  writeTable(sheet, 23, 7, ["Measure", "Count", "Report Month"], [
+  section(sheet, "G27:L27", "Vulnerabilities Patched in Last Month");
+  writeTable(sheet, 28, 7, ["Measure", "Count", "Report Month"], [
     ["Previous Month Open", patched.previousMonthOpen, patched.previousMonth],
     ["New This Month", patched.newVulnerabilitiesIdentifiedThisMonth, patched.currentMonth],
     ["Current Month Open", patched.currentMonthOpen, patched.currentMonth],
     ["Patched Last Month", patched.patchedCount, patched.currentMonth],
   ]);
 
-  section(sheet, "A31:L31", "Uploaded Month Summary");
+  section(sheet, "A35:L35", "Uploaded Month Summary");
   writeTable(
     sheet,
-    32,
+    36,
     1,
     ["Month", "Critical", "High", "Medium", "Low", "Total Open", "New", "Patched"],
     dashboard.severityTrend.map((row, index) => [
@@ -137,12 +139,12 @@ function buildMonthlySheet(workbook, analysis) {
   );
 
   if (dashboard.crowdstrikeInsights) {
-    section(sheet, "A40:L40", "CrowdStrike Exposure Signals");
+    section(sheet, "A44:L44", "CrowdStrike Exposure Signals");
     const insight = dashboard.crowdstrikeInsights;
-    kpi(sheet, "A41:C44", "EXPLOIT AVAILABLE", insight.exploitAvailable, "Known exploit signal", COLORS.high);
-    kpi(sheet, "D41:F44", "CISA KEV", insight.cisaKev, "Cataloged exploited CVEs", COLORS.critical);
-    kpi(sheet, "G41:I44", "INTERNET EXPOSED", insight.internetExposed, "Open findings", "0891B2");
-    kpi(sheet, "J41:L44", "CRITICAL ASSETS", insight.criticalAssets, "Distinct assets", "7C3AED");
+    kpi(sheet, "A45:C48", "EXPLOIT AVAILABLE", insight.exploitAvailable, "Known exploit signal", COLORS.high);
+    kpi(sheet, "D45:F48", "CISA KEV", insight.cisaKev, "Cataloged exploited CVEs", COLORS.critical);
+    kpi(sheet, "G45:I48", "INTERNET EXPOSED", insight.internetExposed, "Open findings", "0891B2");
+    kpi(sheet, "J45:L48", "CRITICAL ASSETS", insight.criticalAssets, "Distinct assets", "7C3AED");
   }
 }
 
@@ -279,6 +281,64 @@ function sparkBars(sheet, startRow, startColumn, rows, color) {
     cell.value = `${"■".repeat(blocks)} ${value}`;
     cell.font = { bold: true, color: { argb: `FF${color}` } };
   });
+}
+
+async function addLineChartImage(workbook, sheet, points, chartTitle, color, placement) {
+  const image = await renderLineChartPng(points, chartTitle, color);
+  const imageId = workbook.addImage({ base64: image, extension: "png" });
+  sheet.addImage(imageId, {
+    tl: { col: placement.col, row: placement.row },
+    ext: { width: placement.width, height: placement.height },
+    editAs: "oneCell",
+  });
+}
+
+async function renderLineChartPng(points, chartTitle, color) {
+  const width = 900;
+  const height = 360;
+  const plot = { left: 72, top: 74, right: 72, bottom: 58 };
+  const chartWidth = width - plot.left - plot.right;
+  const chartHeight = height - plot.top - plot.bottom;
+  const values = points.map((point) => Math.max(0, Number(point.value) || 0));
+  const maxValue = Math.max(1, ...values);
+  const axisMax = Math.max(5, Math.ceil(maxValue / 5) * 5);
+  const xFor = (index) => plot.left + (points.length <= 1 ? chartWidth / 2 : (index / (points.length - 1)) * chartWidth);
+  const yFor = (value) => plot.top + chartHeight - (value / axisMax) * chartHeight;
+  const grid = Array.from({ length: 6 }, (_, index) => {
+    const value = Math.round((axisMax * index) / 5);
+    const y = yFor(value);
+    return `<line x1="${plot.left}" y1="${y}" x2="${width - plot.right}" y2="${y}" stroke="#D7DEE8" stroke-width="1" stroke-dasharray="5 5"/><text x="${plot.left - 14}" y="${y + 5}" text-anchor="end" font-size="17" fill="#64748B">${value}</text>`;
+  }).join("");
+  const labels = points.map((point, index) => `<text x="${xFor(index)}" y="${height - 22}" text-anchor="middle" font-size="17" font-weight="600" fill="#475569">${escapeXml(point.label)}</text>`).join("");
+  const coordinates = points.map((point, index) => `${xFor(index)},${yFor(values[index])}`).join(" ");
+  const dots = points.map((point, index) => `<circle cx="${xFor(index)}" cy="${yFor(values[index])}" r="7" fill="#FFFFFF" stroke="${color}" stroke-width="5"/><text x="${xFor(index)}" y="${yFor(values[index]) - 15}" text-anchor="middle" font-size="17" font-weight="700" fill="#334155">${values[index]}</text>`).join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" rx="18" fill="#FFFFFF"/><text x="${width / 2}" y="38" text-anchor="middle" font-family="Aptos,Segoe UI,sans-serif" font-size="26" font-weight="700" fill="#172033">${escapeXml(chartTitle)}</text><g font-family="Aptos,Segoe UI,sans-serif">${grid}${labels}<polyline points="${coordinates}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>${dots}</g></svg>`;
+  const svgUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  const image = new Image();
+  try {
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error(`Could not render ${chartTitle}.`));
+      image.src = svgUrl;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL("image/png");
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+}
+
+function escapeXml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
 }
 
 function styleHeader(row) {
