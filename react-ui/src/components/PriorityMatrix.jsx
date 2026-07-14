@@ -16,14 +16,14 @@ export function PriorityMatrix({ compact = false }) {
   return (
     <section aria-label="Patch priority calculation matrix" className={`cyber-panel rounded-[1.75rem] ${compact ? "p-4" : "p-5"}`}>
       <p className="mini-label">Priority Matrix</p>
-      <h2 className={`mt-1 font-black text-white ${compact ? "text-lg" : "text-xl"}`}>Exploit Availability vs Severity</h2>
+      <h2 className={`mt-1 font-black text-white ${compact ? "text-lg" : "text-xl"}`}>Exploit Available vs Severity</h2>
       {compact && <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">SC <span className="text-slate-300">Exploit?</span>, IO <span className="text-slate-300">Exploit Ease</span>, or the selected scanner&apos;s equivalent signal.</p>}
 
       <div className={`${compact ? "mt-4" : "mt-5"} overflow-hidden rounded-2xl border border-white/10`}>
         <div className="grid grid-cols-[0.9fr_1fr_1fr] bg-black/40 text-center text-[0.62rem] font-black uppercase tracking-[0.1em] text-slate-400">
           <div className={compact ? "p-2.5" : "p-3"}>Severity</div>
-          <div className={`border-l border-white/10 ${compact ? "p-2.5" : "p-3"}`}>Yes / Available</div>
-          <div className={`border-l border-white/10 ${compact ? "p-2.5" : "p-3"}`}>No / Unavailable</div>
+          <div className={`border-l border-white/10 ${compact ? "p-2.5" : "p-3"}`}>Exploit Available: Yes</div>
+          <div className={`border-l border-white/10 ${compact ? "p-2.5" : "p-3"}`}>Exploit Available: No</div>
         </div>
         {rows.map(([severity, yes, no, tone]) => (
           <div key={severity} className="grid grid-cols-[0.9fr_1fr_1fr] border-t border-white/10 text-center font-black">

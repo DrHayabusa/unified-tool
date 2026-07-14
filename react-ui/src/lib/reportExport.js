@@ -32,6 +32,7 @@ const FINDING_COLUMNS = [
   ["Platform Details", "platformDetails", 34],
   ["First Discovered", "firstDiscovered", 17],
   ["Last Observed", "lastObserved", 17],
+  ["Source Tools", "sourceDisplay", 34],
   ["Record Count", "recordCount", 14],
 ];
 
@@ -57,6 +58,7 @@ export async function buildAnalysisWorkbook(analysis) {
   if (isComparisonWorkflow(analysis)) await buildMonthlySheet(workbook, analysis);
   else await buildAdhocSheet(workbook, analysis);
   buildFindingsSheet(workbook, isComparisonWorkflow(analysis) ? analysis.currentFindings : analysis.findings);
+  if ((analysis.sourceIds?.length ?? analysis.inputSummary?.sourceCount ?? 0) > 1) buildSourceAuditSheet(workbook, analysis);
   return workbook;
 }
 
@@ -205,7 +207,7 @@ function buildFindingsSheet(workbook, findings) {
   styleHeader(sheet.getRow(1));
   sheet.autoFilter = { from: "A1", to: `${column(FINDING_COLUMNS.length)}${Math.max(1, rows.length + 1)}` };
   sheet.getColumn(8).numFmt = "0";
-  sheet.getColumn(17).numFmt = "0";
+  sheet.getColumn(18).numFmt = "0";
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
     row.alignment = { vertical: "top", wrapText: false };
@@ -219,6 +221,39 @@ function buildFindingsSheet(workbook, findings) {
     priority.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${priorityColor}` } };
     priority.font = { bold: true, color: { argb: `FF${COLORS.white}` } };
   });
+}
+
+function buildSourceAuditSheet(workbook, analysis) {
+  const sheet = workbook.addWorksheet("Source Audit", { views: [{ state: "frozen", ySplit: 4, showGridLines: false }] });
+  prepareSheet(sheet, 9);
+  title(sheet, "Unified Multi-Tool Source Audit", analysis.dashboard?.reportRange ?? analysis.reportMonth ?? analysis.reportPeriod ?? "Current report", 9);
+  const summary = analysis.inputSummary ?? {};
+  const latestSummary = analysis.snapshots?.at(-1)?.inputSummary ?? summary;
+  kpi(sheet, "A4:B7", "INPUT FILES", summary.fileCount ?? 0, "All uploaded periods", "0284C7");
+  kpi(sheet, "C4:D7", "SCANNER SOURCES", summary.sourceCount ?? analysis.sourceIds?.length ?? 0, "Selected and detected", COLORS.high);
+  kpi(sheet, "E4:G7", "CONSOLIDATED OPEN", latestSummary.consolidatedOpenFindings ?? analysis.dashboard?.totalVulnerabilities ?? analysis.dashboard?.totalOpenVulnerabilities?.totalOpen ?? 0, "Latest/current report", COLORS.teal);
+  kpi(sheet, "H4:I7", "REPEATS REMOVED", latestSummary.duplicatesRemoved ?? 0, "Latest/current report", COLORS.critical);
+
+  section(sheet, "A9:I9", "Per-Source Coverage");
+  const sourceRows = (analysis.dashboard?.sourceBreakdown ?? []).map((source) => [
+    source.sourceLabel,
+    source.openFindings,
+    source.affectedAssets,
+    source.exploitAvailable,
+  ]);
+  writeTable(sheet, 10, 1, ["Scanner Source", "Observed Findings", "Affected Assets", "Exploit Available"], sourceRows, true);
+
+  if ((analysis.dashboard?.sourceTrend?.length ?? 0) > 1) {
+    section(sheet, "A18:I18", "Historical Consolidation Audit");
+    writeTable(
+      sheet,
+      19,
+      1,
+      ["Period", "Files", "Scanner Sources", "Repeats Removed"],
+      analysis.dashboard.sourceTrend.map((row) => [row.period, row.fileCount, row.sources.map((source) => source.sourceLabel).join(" + "), row.duplicatesRemoved]),
+      true,
+    );
+  }
 }
 
 function prepareSheet(sheet, columns) {
@@ -356,6 +391,7 @@ function tableHeaderCell(cell, value) {
 
 function findingCellValue(finding, key) {
   if (key === "exploitAvailable") return finding[key] ? "Yes" : "No";
+  if (key === "sourceDisplay") return finding.sourceDisplay || (finding.sourceTools ?? []).join(" + ") || finding.sourceTool;
   const value = finding[key];
   if (value !== undefined && value !== null && value !== "") return value;
   if (key === "firstDiscovered" || key === "lastObserved") return "Not provided by source export";

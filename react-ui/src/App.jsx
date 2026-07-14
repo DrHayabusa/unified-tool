@@ -14,22 +14,32 @@ import { SourceChoice } from "./components/SourceChoice.jsx";
 import { TrendPanel } from "./components/TrendPanel.jsx";
 import { ThreatIntelPanel } from "./components/ThreatIntelPanel.jsx";
 import { UploadPanel } from "./components/UploadPanel.jsx";
-import { sourceTools } from "./data/dashboardData.js";
+import { SourceCoveragePanel } from "./components/SourceCoveragePanel.jsx";
+import { implementedSourceTools, sourceTools, unifiedSourceTool } from "./data/dashboardData.js";
 import { analyzeAdhocFiles, analyzeMonthlyFiles, analyzeQuarterlyScan } from "./lib/vulnerabilityEngine.js";
 
 export default function App() {
-  const [selectedSourceId, setSelectedSourceId] = useState("tenable-sc");
+  const [sourceSelectionMode, setSourceSelectionMode] = useState("single");
+  const [selectedSourceIds, setSelectedSourceIds] = useState(["tenable-sc"]);
   const [mode, setMode] = useState(null);
   const [adhocAnalysis, setAdhocAnalysis] = useState(null);
+  const [adhocFiles, setAdhocFiles] = useState([]);
   const [monthlyAnalysis, setMonthlyAnalysis] = useState(null);
   const [monthlyFiles, setMonthlyFiles] = useState([]);
   const [quarterlyAnalysis, setQuarterlyAnalysis] = useState(null);
+  const [quarterlyFiles, setQuarterlyFiles] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [lastAnalysis, setLastAnalysis] = useState(null);
 
   const selectedSource = useMemo(
-    () => sourceTools.find((source) => source.id === selectedSourceId) ?? sourceTools[0],
-    [selectedSourceId],
+    () => sourceSelectionMode === "multi"
+      ? { ...unifiedSourceTool, sourceIds: selectedSourceIds }
+      : sourceTools.find((source) => source.id === selectedSourceIds[0]) ?? sourceTools[0],
+    [selectedSourceIds, sourceSelectionMode],
+  );
+  const sourceSelection = useMemo(
+    () => sourceSelectionMode === "multi" ? { mode: "multi", sourceIds: selectedSourceIds } : selectedSourceIds[0],
+    [selectedSourceIds, sourceSelectionMode],
   );
   const focusComparisonDashboard = mode === "monthly" && Boolean(monthlyAnalysis);
   const focusWorkspace = focusComparisonDashboard || mode === "threat-intel";
@@ -47,18 +57,39 @@ export default function App() {
     setMode(page);
   };
 
-  const handleSourceChange = (sourceId) => {
-    setSelectedSourceId(sourceId);
+  const resetSourceWorkspace = () => {
     setAdhocAnalysis(null);
+    setAdhocFiles([]);
     setMonthlyAnalysis(null);
     setMonthlyFiles([]);
     setQuarterlyAnalysis(null);
+    setQuarterlyFiles([]);
     setSelectedMonth("");
     setLastAnalysis(null);
   };
 
+  const handleSourceModeChange = (nextMode) => {
+    if (nextMode === sourceSelectionMode) return;
+    setSourceSelectionMode(nextMode);
+    setSelectedSourceIds(nextMode === "multi" ? implementedSourceTools.map((source) => source.id) : [selectedSourceIds[0] ?? "tenable-sc"]);
+    resetSourceWorkspace();
+  };
+
+  const handleSourceToggle = (sourceId) => {
+    if (sourceSelectionMode === "single") {
+      if (selectedSourceIds[0] === sourceId) return;
+      setSelectedSourceIds([sourceId]);
+      resetSourceWorkspace();
+      return;
+    }
+    if (selectedSourceIds.includes(sourceId) && selectedSourceIds.length <= 2) return;
+    setSelectedSourceIds((current) => current.includes(sourceId) ? current.filter((id) => id !== sourceId) : [...current, sourceId]);
+    resetSourceWorkspace();
+  };
+
   const handleAdhocAnalyze = async (files) => {
-    const result = await analyzeAdhocFiles(files, selectedSourceId);
+    const result = await analyzeAdhocFiles(files, sourceSelection);
+    setAdhocFiles(Array.from(files ?? []));
     setAdhocAnalysis(result);
     setLastAnalysis(result);
     setSelectedMonth(result.reportMonth);
@@ -66,7 +97,7 @@ export default function App() {
   };
 
   const handleMonthlyAnalyze = async (files) => {
-    const result = await analyzeMonthlyFiles(files, selectedSourceId);
+    const result = await analyzeMonthlyFiles(files, sourceSelection);
     setMonthlyFiles(Array.from(files ?? []));
     setMonthlyAnalysis(result);
     setLastAnalysis(result);
@@ -75,11 +106,24 @@ export default function App() {
   };
 
   const handleQuarterlyAnalyze = async (files) => {
-    const result = await analyzeQuarterlyScan(files, selectedSourceId);
+    const result = await analyzeQuarterlyScan(files, sourceSelection);
+    setQuarterlyFiles(Array.from(files ?? []));
     setQuarterlyAnalysis(result);
     setLastAnalysis(result);
     setSelectedMonth(result.reportPeriod);
     return result;
+  };
+
+  const handleAdhocFilesChange = (nextFiles) => {
+    setAdhocFiles((currentFiles) => typeof nextFiles === "function" ? nextFiles(currentFiles) : nextFiles);
+    setAdhocAnalysis(null);
+    setSelectedMonth("");
+  };
+
+  const handleQuarterlyFilesChange = (nextFiles) => {
+    setQuarterlyFiles((currentFiles) => typeof nextFiles === "function" ? nextFiles(currentFiles) : nextFiles);
+    setQuarterlyAnalysis(null);
+    setSelectedMonth("");
   };
 
   const handleEditMonthlyUploads = () => {
@@ -96,9 +140,11 @@ export default function App() {
   const handleBackToDashboard = () => {
     setMode(null);
     setAdhocAnalysis(null);
+    setAdhocFiles([]);
     setMonthlyAnalysis(null);
     setMonthlyFiles([]);
     setQuarterlyAnalysis(null);
+    setQuarterlyFiles([]);
     setSelectedMonth("");
   };
 
@@ -116,7 +162,7 @@ export default function App() {
               <div className="flex min-w-0 flex-col gap-5">
                 {!focusWorkspace && (
                   <>
-                    <SourceChoice selectedSourceId={selectedSourceId} onSelect={handleSourceChange} />
+                    <SourceChoice selectionMode={sourceSelectionMode} selectedSourceIds={selectedSourceIds} onModeChange={handleSourceModeChange} onToggle={handleSourceToggle} />
                     <OperationMode mode={mode} onModeChange={handleModeChange} />
                   </>
                 )}
@@ -125,11 +171,12 @@ export default function App() {
 
                 {mode === "adhoc" && (
                   <>
-                    <UploadPanel selectedSource={selectedSource} analysis={adhocAnalysis} onAnalyze={handleAdhocAnalyze} onBackToDashboard={handleBackToDashboard} />
+                    <UploadPanel selectedSource={selectedSource} analysis={adhocAnalysis} files={adhocFiles} onFilesChange={handleAdhocFilesChange} onAnalyze={handleAdhocAnalyze} onBackToDashboard={handleBackToDashboard} />
 
                     {adhocAnalysis ? (
                       <>
                         <MetricsRow dashboard={adhocAnalysis.dashboard} />
+                        <SourceCoveragePanel dashboard={adhocAnalysis.dashboard} inputSummary={adhocAnalysis.inputSummary} />
                         <TrendPanel dashboard={adhocAnalysis.dashboard} />
                         <div className="grid gap-5 xl:grid-cols-[1fr_1fr] 2xl:grid-cols-[1.1fr_1fr]">
                           <FieldMappingPanel source={selectedSource} exportType={adhocAnalysis.exportType} />
@@ -161,10 +208,11 @@ export default function App() {
 
                 {mode === "quarterly" && (
                   <>
-                    <UploadPanel selectedSource={selectedSource} analysis={quarterlyAnalysis} onAnalyze={handleQuarterlyAnalyze} onBackToDashboard={handleBackToDashboard} workflow="quarterly-scan" />
+                    <UploadPanel selectedSource={selectedSource} analysis={quarterlyAnalysis} files={quarterlyFiles} onFilesChange={handleQuarterlyFilesChange} onAnalyze={handleQuarterlyAnalyze} onBackToDashboard={handleBackToDashboard} workflow="quarterly-scan" />
                     {quarterlyAnalysis ? (
                       <>
                         <MetricsRow dashboard={quarterlyAnalysis.dashboard} />
+                        <SourceCoveragePanel dashboard={quarterlyAnalysis.dashboard} inputSummary={quarterlyAnalysis.inputSummary} />
                         <QuarterlyTrendPanel dashboard={quarterlyAnalysis.dashboard} />
                         <TrendPanel dashboard={quarterlyAnalysis.dashboard} />
                         <div className="grid gap-5 xl:grid-cols-[1fr_1fr] 2xl:grid-cols-[1.1fr_1fr]">
@@ -174,7 +222,7 @@ export default function App() {
                         <RemediationQueue findings={quarterlyAnalysis.findings} />
                       </>
                     ) : (
-                      <EmptyQuarterlyWorkflow />
+                      <EmptyQuarterlyWorkflow unified={selectedSource.id === "unified"} />
                     )}
                   </>
                 )}
@@ -246,13 +294,13 @@ function EmptyWorkflow() {
   );
 }
 
-function EmptyQuarterlyWorkflow() {
+function EmptyQuarterlyWorkflow({ unified = false }) {
   return (
     <section className="rounded-[1.75rem] border border-dashed border-red-300/20 bg-slate-950/50 p-8 text-center">
       <p className="mini-label">Waiting for quarterly scan data</p>
-      <h2 className="mt-2 text-2xl font-black text-white">Upload one current scan export</h2>
+      <h2 className="mt-2 text-2xl font-black text-white">{unified ? "Upload one current export per selected scanner" : "Upload one current scan export"}</h2>
       <p className="mx-auto mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
-        MVA will summarize all open findings and build a line chart for vulnerabilities first discovered in the export&apos;s latest three months.
+        {unified ? "MVA will consolidate the current scanner exports, retain source provenance, and chart vulnerabilities first discovered during the latest three months." : "MVA will summarize all open findings and build a line chart for vulnerabilities first discovered in the export's latest three months."}
       </p>
     </section>
   );
@@ -267,7 +315,7 @@ function StatusPanel({ selectedSource, mode, adhocUploaded, monthlyUploaded, qua
       : mode === "quarterly"
         ? quarterlyUploaded
           ? "Quarterly report analyzed"
-          : "Waiting for one quarterly scan export"
+          : selectedSource.id === "unified" ? "Waiting for current scanner exports" : "Waiting for one quarterly scan export"
       : adhocUploaded
         ? "Adhoc report analyzed"
         : "Waiting";

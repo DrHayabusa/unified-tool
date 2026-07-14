@@ -1,35 +1,38 @@
 import { useState } from "react";
-import { ArrowLeft, CheckCircle2, CloudUpload, FileSearch, FileSpreadsheet, FileText, LockKeyhole, Table2, Upload } from "lucide-react";
-import { loadBundledSamples } from "../data/sampleFiles.js";
+import { ArrowLeft, CheckCircle2, CloudUpload, FileSearch, FileSpreadsheet, FileText, LockKeyhole, Table2, Trash2, Upload, X } from "lucide-react";
+import { loadBundledSamples, loadUnifiedBundledSamples } from "../data/sampleFiles.js";
 import { downloadAnalysisWorkbook, downloadNormalizedCsv } from "../lib/reportExport.js";
 import { buildTemplateMarkdown, downloadRemediationPdf } from "../lib/pdfReport.js";
-import { isSupportedUploadFile } from "../lib/uploadFiles.js";
+import { isSupportedUploadFile, mergeUploadFiles, removeUploadFile, uploadFileKey } from "../lib/uploadFiles.js";
 
-export function UploadPanel({ selectedSource, analysis, onAnalyze, onBackToDashboard, workflow = "adhoc" }) {
-  const [file, setFile] = useState(null);
+export function UploadPanel({ selectedSource, analysis, files = [], onFilesChange, onAnalyze, onBackToDashboard, workflow = "adhoc" }) {
   const [sampleVariant, setSampleVariant] = useState("vulnerability-per-asset");
   const [status, setStatus] = useState({ state: "idle", message: "" });
   const quarterly = workflow === "quarterly-scan";
   const workflowLabel = quarterly ? "Quarterly" : "Adhoc";
+  const unified = selectedSource.id === "unified";
+  const file = files[0] ?? null;
 
-  const selectFile = (nextFile) => {
-    if (!nextFile) return;
-    if (!isSupportedUploadFile(nextFile)) {
-      setStatus({ state: "error", message: "Select a CSV or XLSX export. Legacy XLS files must first be saved as XLSX." });
+  const selectFiles = (fileList) => {
+    const incomingFiles = Array.from(fileList ?? []);
+    if (!incomingFiles.length) return;
+    const invalid = incomingFiles.find((nextFile) => !isSupportedUploadFile(nextFile));
+    if (invalid) {
+      setStatus({ state: "error", message: `${invalid.name} is not supported. Upload CSV or XLSX; legacy XLS must first be saved as XLSX.` });
       return;
     }
-    setFile(nextFile);
-    setStatus({ state: "ready", message: `${nextFile.name} is ready for local analysis.` });
+    onFilesChange?.((currentFiles) => unified ? mergeUploadFiles(currentFiles, incomingFiles) : [incomingFiles.at(-1)]);
+    setStatus({ state: "ready", message: unified ? `${incomingFiles.length} file(s) added. Existing selections remain available.` : `${incomingFiles.at(-1).name} is ready for local analysis.` });
   };
 
   const runAnalysis = async () => {
-    if (!file || status.state === "loading") return;
-    setStatus({ state: "loading", message: `Reading and normalizing ${file.name}...` });
+    if (!files.length || status.state === "loading") return;
+    setStatus({ state: "loading", message: `Reading, detecting, and normalizing ${files.length} export${files.length === 1 ? "" : "s"}...` });
     try {
-      const result = await onAnalyze?.([file]);
+      const result = await onAnalyze?.(files);
       setStatus({
         state: "success",
-        message: `${result?.sourceLabel ?? selectedSource.name} detected. ${result?.dashboard?.totalVulnerabilities?.toLocaleString() ?? 0} open findings analyzed.`,
+        message: `${result?.sourceLabel ?? selectedSource.name}: ${result?.dashboard?.totalVulnerabilities?.toLocaleString() ?? 0} consolidated open findings from ${result?.inputSummary?.fileCount ?? files.length} file(s).`,
       });
     } catch (error) {
       setStatus({ state: "error", message: error.message || "Analysis failed." });
@@ -37,13 +40,25 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze, onBackToDashb
   };
 
   const loadSample = async () => {
-    setStatus({ state: "loading", message: "Loading the bundled test CSV..." });
+    setStatus({ state: "loading", message: unified ? "Loading one real sample CSV for every selected tool..." : "Loading the bundled test CSV..." });
     try {
-      const [sample] = await loadBundledSamples(selectedSource.id, "adhoc", sampleVariant);
-      selectFile(sample);
+      const samples = unified
+        ? await loadUnifiedBundledSamples(selectedSource.sourceIds, workflow)
+        : await loadBundledSamples(selectedSource.id, "adhoc", sampleVariant);
+      selectFiles(samples);
     } catch (error) {
       setStatus({ state: "error", message: error.message });
     }
+  };
+
+  const removeFile = (fileToRemove) => {
+    onFilesChange?.((currentFiles) => removeUploadFile(currentFiles, fileToRemove));
+    setStatus({ state: "ready", message: `${fileToRemove.name} removed.` });
+  };
+
+  const clearFiles = () => {
+    onFilesChange?.([]);
+    setStatus({ state: "idle", message: "All selected files were cleared." });
   };
 
   const downloadExcel = async () => {
@@ -85,11 +100,11 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze, onBackToDashb
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="mini-label">{quarterly ? "Quarterly Scan Intake" : "Upload Export File"}</p>
-          <h2 className="mt-1 text-2xl font-black text-white">{quarterly ? "Single-export 3-month analysis" : "Adhoc file intake"}</h2>
+          <h2 className="mt-1 text-2xl font-black text-white">{quarterly ? unified ? "Multi-source 3-month analysis" : "Single-export 3-month analysis" : "Adhoc file intake"}</h2>
           <p className="mt-1 text-sm font-semibold text-slate-400">
             {quarterly
-              ? `Analyze one ${selectedSource.name} CSV or XLSX and chart findings discovered during its latest three months.`
-              : `Analyze one ${selectedSource.name} CSV or XLSX with automatic export-type detection.`}
+              ? unified ? "Combine one current scan export per selected tool and chart findings discovered during the latest three months." : `Analyze one ${selectedSource.name} CSV or XLSX and chart findings discovered during its latest three months.`
+              : unified ? "Add one or more exports from every selected scanner for one consolidated current-state dashboard." : `Analyze one ${selectedSource.name} CSV or XLSX with automatic export-type detection.`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -106,22 +121,40 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze, onBackToDashb
         onDragOver={(event) => event.preventDefault()}
         onDrop={(event) => {
           event.preventDefault();
-          selectFile(event.dataTransfer.files?.[0]);
+          selectFiles(event.dataTransfer.files);
         }}
       >
-        <input className="sr-only" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => { selectFile(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+        <input className="sr-only" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple={unified} onChange={(event) => { selectFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
         {analysis ? (
           <CheckCircle2 className="mb-4 h-16 w-16 text-emerald-300" />
         ) : (
           <CloudUpload className="mb-4 h-16 w-16 text-slate-300 transition group-hover:text-emerald-300" />
         )}
         <p className="text-lg font-black text-white">
-          {analysis ? "Analysis complete" : file ? file.name : "Drop one CSV or XLSX here or click once to browse"}
+          {analysis ? "Analysis complete" : files.length ? unified ? `${files.length} exports ready` : file.name : unified ? "Drop scanner exports here or click to multi-select" : "Drop one CSV or XLSX here or click once to browse"}
         </p>
         <p className="mt-2 text-sm font-semibold text-slate-500">
-          {analysis ? `${analysis.exportType} detected automatically` : file ? formatBytes(file.size) : "The file remains in this browser until an optional AI handoff."}
+          {analysis ? `${analysis.exportType} detected automatically` : files.length ? unified ? "Separate drops append; matching filenames replace the older copy." : formatBytes(file.size) : "Files remain in this browser until an optional AI handoff."}
         </p>
       </label>
+
+      {files.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div><p className="text-sm font-black text-white">Selected exports</p><p className="mt-1 text-xs font-semibold text-slate-500">{files.length} file{files.length === 1 ? "" : "s"} ready for source detection</p></div>
+            <button type="button" onClick={clearFiles} className="flex items-center gap-2 rounded-xl border border-red-300/20 bg-red-400/10 px-3 py-2 text-xs font-black text-red-200"><Trash2 className="h-4 w-4" />Clear all</button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {files.map((selectedFile) => (
+              <article key={uploadFileKey(selectedFile)} className="flex min-w-0 items-center gap-3 rounded-xl border border-white/10 bg-white/[0.025] p-3">
+                <FileText className="h-5 w-5 shrink-0 text-cyan-300" />
+                <div className="min-w-0 flex-1"><p className="truncate text-xs font-black text-white" title={selectedFile.name}>{selectedFile.name}</p><p className="mt-1 text-[0.65rem] font-semibold text-slate-500">{formatBytes(selectedFile.size)}</p></div>
+                <button type="button" onClick={() => removeFile(selectedFile)} aria-label={`Remove ${selectedFile.name}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 text-slate-400 hover:border-red-300/30 hover:text-red-200"><X className="h-4 w-4" /></button>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
 
       {selectedSource.id === "crowdstrike" && (
         <label className="mt-4 block rounded-2xl border border-red-300/15 bg-red-400/5 p-4">
@@ -141,11 +174,11 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze, onBackToDashb
         <button
           type="button"
           onClick={runAnalysis}
-          disabled={!file || status.state === "loading"}
+          disabled={!files.length || status.state === "loading"}
           className="neon-button flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"
         >
           {status.state === "loading" ? <FileSearch className="h-4 w-4 animate-pulse" /> : <Upload className="h-4 w-4" />}
-          {status.state === "loading" ? "Working..." : analysis ? "Re-analyze Selected Export" : quarterly ? "Analyze 3-Month Scan" : "Analyze & Generate Dashboard"}
+          {status.state === "loading" ? "Working..." : analysis ? "Re-analyze Selected Exports" : quarterly ? "Analyze 3-Month Scan" : "Analyze & Generate Dashboard"}
         </button>
         <div
           className={`rounded-xl border px-4 py-3 text-xs font-bold ${
@@ -156,7 +189,7 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze, onBackToDashb
                 : "border-white/10 bg-white/5 text-slate-400"
           }`}
         >
-          {status.message || "Select a CSV or XLSX export to begin."}
+          {status.message || (unified ? "Select exports from at least two enabled scanner tools." : "Select a CSV or XLSX export to begin.")}
         </div>
       </div>
 

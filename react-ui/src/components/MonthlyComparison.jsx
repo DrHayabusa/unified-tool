@@ -15,8 +15,9 @@ import { AGE_BUCKETS, extractMonthFromFilename, extractQuarterFromFilename } fro
 import { downloadAnalysisWorkbook, downloadNormalizedCsv } from "../lib/reportExport.js";
 import { buildTemplateMarkdown, downloadRemediationPdf } from "../lib/pdfReport.js";
 import { isSupportedUploadFile, mergeUploadFiles, removeUploadFile, uploadFileKey } from "../lib/uploadFiles.js";
-import { loadBundledSamples } from "../data/sampleFiles.js";
+import { loadBundledSamples, loadUnifiedBundledSamples } from "../data/sampleFiles.js";
 import { AiReportBuilder } from "./AiReportBuilder.jsx";
+import { SourceCoveragePanel } from "./SourceCoveragePanel.jsx";
 
 const PRIORITY_COLORS = { P1: "#dc2626", P2: "#ea580c", P3: "#ca8a04", P4: "#16a34a" };
 const SEVERITY_COLORS = { Critical: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#22c55e", Info: "#0ea5e9", Unknown: "#64748b" };
@@ -84,7 +85,7 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
         <div>
           <p className="mini-label text-red-300">{labels.title} Comparison Report</p>
           <h2 className="mt-1 text-2xl font-black text-white">{dashboard.reportRange}</h2>
-          <p className="mt-1 text-sm font-semibold text-slate-400">{analysis.sourceLabel} | {analysis.snapshots.length} validated {labels.lower} CSV/XLSX exports</p>
+          <p className="mt-1 text-sm font-semibold text-slate-400">{analysis.sourceLabel} | {analysis.inputSummary?.fileCount ?? analysis.snapshots.length} validated files consolidated into {analysis.snapshots.length} {labels.lower} period{analysis.snapshots.length === 1 ? "" : "s"}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={onBackToDashboard} className="ghost-button flex items-center gap-2 py-3">
@@ -141,7 +142,11 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
         <Kpi label="Total Open Vulnerabilities" value={open.totalOpen} helper={`${open.newVulnerabilities} new + ${open.notClosedFromPreviousMonths} not closed`} color="#f87171" />
         <Kpi label="Immediate Patch Needed" value={(dashboard.totalOpenByPatchPriority.P1 ?? 0) + (dashboard.totalOpenByPatchPriority.P2 ?? 0)} helper="P1 + P2" color="#ef4444" />
         <Kpi label={`Patched Last ${labels.singular}`} value={patched.patchedCount} helper={`${patched.previousPeriod} to ${patched.currentPeriod}`} color="#22c55e" />
-        <Kpi label="Files Compared" value={analysis.snapshots.length} helper={monthOptions.join(" | ")} color="#38bdf8" />
+        <Kpi label="Periods Compared" value={analysis.snapshots.length} helper={`${analysis.inputSummary?.fileCount ?? analysis.snapshots.length} source file(s)`} color="#38bdf8" />
+      </div>
+
+      <div className="mt-5">
+        <SourceCoveragePanel dashboard={dashboard} inputSummary={analysis.snapshots.at(-1)?.inputSummary ?? analysis.inputSummary} />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
@@ -225,11 +230,12 @@ export function MonthlyComparison({ analysis, onAnalyze, selectedSource, selecte
 function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChange, onResetUploads, onBackToDashboard, cadence }) {
   const labels = comparisonLabels(cadence);
   const [statusOverride, setStatusOverride] = useState(null);
-  const status = statusOverride ?? selectionStatus(files.length, cadence);
   const [sampleVariant, setSampleVariant] = useState("vulnerability-per-asset");
   const periodExtractor = cadence === "quarterly" ? extractQuarterFromFilename : extractMonthFromFilename;
-  const detectedMonths = files.map((file) => periodExtractor(file.name)?.label).filter(Boolean);
-  const canAnalyze = files.length >= 2;
+  const detectedMonths = [...new Set(files.map((file) => periodExtractor(file.name)?.label).filter(Boolean))];
+  const unified = selectedSource.id === "unified";
+  const status = statusOverride ?? selectionStatus(files.length, cadence, unified ? detectedMonths.length : null);
+  const canAnalyze = unified ? detectedMonths.length >= 2 : files.length >= 2;
 
   const selectFiles = (fileList) => {
     const incomingFiles = Array.from(fileList ?? []);
@@ -258,16 +264,18 @@ function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChang
     setStatusOverride({ state: "loading", message: `Comparing ${files.length} ${labels.unitLower} reports locally...` });
     try {
       const result = await onAnalyze(files);
-      setStatusOverride({ state: "success", message: `${result.snapshots.length} reports analyzed.` });
+      setStatusOverride({ state: "success", message: unified ? `${result.inputSummary.fileCount} files consolidated into ${result.snapshots.length} ${labels.lower} periods.` : `${result.snapshots.length} reports analyzed.` });
     } catch (error) {
       setStatusOverride({ state: "error", message: error.message || `${labels.title} analysis failed.` });
     }
   };
 
   const loadSamples = async () => {
-    setStatusOverride({ state: "loading", message: `Loading four real ${selectedSource.name} sample CSVs...` });
+    setStatusOverride({ state: "loading", message: unified ? "Loading four months for every selected scanner..." : `Loading four real ${selectedSource.name} sample CSVs...` });
     try {
-      const samples = await loadBundledSamples(selectedSource.id, cadence, sampleVariant);
+      const samples = unified
+        ? await loadUnifiedBundledSamples(selectedSource.sourceIds, cadence)
+        : await loadBundledSamples(selectedSource.id, cadence, sampleVariant);
       selectFiles(samples);
     } catch (error) {
       setStatusOverride({ state: "error", message: error.message || "Sample loading failed." });
@@ -277,7 +285,7 @@ function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChang
   return (
     <section className="cyber-panel rounded-[1.75rem] p-5">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div><p className="mini-label">{labels.title} Data Comparison</p><h2 className="mt-1 text-2xl font-black text-white">Upload {labels.lower} exports</h2><p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-400">Choose two or more {selectedSource.name} CSV or XLSX files. Use one export per {labels.unitLower}; CrowdStrike comparison uses Vulnerabilities or Vulnerability per asset exports.</p></div>
+        <div><p className="mini-label">{labels.title} Data Comparison</p><h2 className="mt-1 text-2xl font-black text-white">Upload {labels.lower} exports</h2><p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-400">{unified ? `Add each selected scanner's CSV/XLSX export for every ${labels.unitLower}. Files sharing a ${labels.unitLower} are consolidated into one historical snapshot.` : `Choose two or more ${selectedSource.name} CSV or XLSX files. Use one export per ${labels.unitLower}; CrowdStrike comparison uses Vulnerabilities or Vulnerability per asset exports.`}</p></div>
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={onBackToDashboard} className="ghost-button flex items-center gap-2 py-2.5">
             <ArrowLeft className="h-4 w-4" />
@@ -333,15 +341,15 @@ function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChang
             </label>
           )}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={loadSamples} disabled={status.state === "loading"} className="ghost-button disabled:cursor-not-allowed disabled:opacity-45">Load 4-{labels.singular} Test Pack</button>
+            <button type="button" onClick={loadSamples} disabled={status.state === "loading"} className="ghost-button disabled:cursor-not-allowed disabled:opacity-45">{unified ? `Load Unified 4-${labels.singular} Test Pack` : `Load 4-${labels.singular} Test Pack`}</button>
             <button type="button" onClick={analyze} disabled={!canAnalyze || status.state === "loading"} className="neon-button disabled:cursor-not-allowed disabled:opacity-45">{status.state === "loading" ? `Analyzing ${labels.title} Reports...` : `Analyze & Generate ${labels.title} Report`}</button>
           </div>
           <p className={`mt-3 rounded-xl border px-4 py-3 text-xs font-bold ${status.state === "error" ? "border-red-300/25 bg-red-400/10 text-red-100" : status.state === "ready" ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/5 text-slate-400"}`}>{status.message}</p>
         </div>
         <div className="grid gap-4">
-          <Requirement title={`2+ ${labels.title} Reports`} body="Calculates total open, new, not closed, and patched findings." />
-          <Requirement title={`3+ ${labels.title} Reports`} body={`Builds the required three-${labels.unitLower} discovered and patched line charts.`} />
-          <Requirement title="Auto Field Mapping" body={`${selectedSource.name} headers are detected and normalized before comparison.`} />
+          <Requirement title={`2+ ${labels.title} Periods`} body={unified ? `Upload one file per selected tool for at least two distinct ${labels.lower} periods.` : "Calculates total open, new, not closed, and patched findings."} />
+          <Requirement title={`3+ ${labels.title} Periods`} body={`Builds the required three-${labels.unitLower} discovered and patched line charts.`} />
+          <Requirement title="Auto Field Mapping" body={unified ? "Every file is independently detected and mapped before cross-scanner consolidation." : `${selectedSource.name} headers are detected and normalized before comparison.`} />
           {detectedMonths.length > 0 && <Requirement title={`Detected ${labels.plural}`} body={detectedMonths.join(" | ")} />}
         </div>
       </div>
@@ -349,8 +357,13 @@ function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChang
   );
 }
 
-function selectionStatus(fileCount, cadence = "monthly") {
+function selectionStatus(fileCount, cadence = "monthly", detectedPeriodCount = null) {
   const lower = cadence === "quarterly" ? "quarterly" : "monthly";
+  if (detectedPeriodCount != null) {
+    if (fileCount === 0) return { state: "idle", message: `Select exports for at least two distinct ${lower} periods.` };
+    if (detectedPeriodCount < 2) return { state: "idle", message: `${fileCount} file(s) selected for ${detectedPeriodCount || 0} detected period. Add another ${lower} period.` };
+    return { state: "ready", message: `${fileCount} files across ${detectedPeriodCount} ${lower} periods are ready for consolidated analysis.` };
+  }
   if (fileCount === 0) return { state: "idle", message: `Select at least two ${lower} CSV or XLSX exports.` };
   if (fileCount === 1) return { state: "idle", message: `1 ${lower} report selected. Add one more report to compare.` };
   return { state: "ready", message: `${fileCount} ${lower} reports ready. You can add or remove files before analysis.` };
