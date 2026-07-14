@@ -1,6 +1,6 @@
 # MVA Unified Agent
 
-MVA Unified Agent is a database-free vulnerability intake and remediation platform. It parses scanner CSV exports locally in the browser, normalizes them into one MVA schema, applies the approved exploit-aware priority matrix, produces adhoc or monthly dashboards, exports Excel/CSV reports, and generates a Remediation Guide PDF locally or through an optional AI provider.
+MVA Unified Agent is a database-free vulnerability intake and remediation platform. It parses scanner CSV and XLSX exports locally in the browser, normalizes them into one MVA schema, applies the approved exploit-aware priority matrix, produces adhoc or monthly dashboards, exports Excel/CSV reports, and generates a Remediation Guide PDF locally or through an optional AI provider.
 
 ## Implemented Sources
 
@@ -48,7 +48,7 @@ GitHub Pages is built by `.github/workflows/deploy-pages.yml` from `react-ui/` a
 
 [https://drhayabusa.github.io/unified-tool/](https://drhayabusa.github.io/unified-tool/)
 
-The static site performs CSV comparison in the browser. Session-pasted provider keys remain in React state and are cleared when the tab closes. For enterprise production, route AI calls through an organization-controlled backend so keys never reach browser JavaScript.
+The static site performs CSV/XLSX comparison in the browser. Session-pasted provider keys remain in React state and are cleared when the tab closes. For enterprise production, route AI calls through an organization-controlled backend so keys never reach browser JavaScript.
 
 ## AI Provider
 

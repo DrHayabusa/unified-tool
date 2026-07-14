@@ -1,6 +1,6 @@
 {
   "status": "PASS",
-  "input": "output/pdf/mva_crowdstrike_final_remediation_guide.pdf",
+  "input": "final/PDF/MVA_CrowdStrike_Remediation_Guide.pdf",
   "pages": 11,
   "clickable_links": 15,
   "checks_passed": 15,

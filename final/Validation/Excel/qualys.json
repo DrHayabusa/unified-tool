@@ -6,25 +6,64 @@
     "xlsx_reopens": true,
     "required_sheets_present": true,
     "formula_errors_absent": true,
-    "obsolete_lane_absent": true
+    "obsolete_lane_absent": true,
+    "required_line_charts_present": true
   },
   "sheets": [
     {
-      "name": "Monthly Report",
-      "rows": 36,
+      "name": "Executive Dashboard",
+      "rows": 49,
       "columns": 12,
-      "mergedRanges": 35,
-      "frozenAt": "A4"
+      "mergedRanges": 16,
+      "frozenAt": "",
+      "charts": [
+        {
+          "type": "LineChart",
+          "title": "Vulnerabilities Discovered"
+        },
+        {
+          "type": "LineChart",
+          "title": "Vulnerabilities Remediated"
+        },
+        {
+          "type": "BarChart",
+          "title": "Patch Priority Distribution"
+        }
+      ]
     },
     {
-      "name": "Report Data",
-      "rows": 126,
-      "columns": 17,
-      "mergedRanges": 0,
-      "frozenAt": "C2"
+      "name": "Monthly Dashboard",
+      "rows": 32,
+      "columns": 12,
+      "mergedRanges": 30,
+      "frozenAt": "",
+      "charts": [
+        {
+          "type": "LineChart",
+          "title": "Vulnerabilities Discovered"
+        },
+        {
+          "type": "LineChart",
+          "title": "Vulnerabilities Remediated"
+        }
+      ]
+    },
+    {
+      "name": "Adhoc Dashboard",
+      "rows": 31,
+      "columns": 8,
+      "mergedRanges": 8,
+      "frozenAt": "",
+      "charts": [
+        {
+          "type": "BarChart",
+          "title": "Top 10 Affected Assets"
+        }
+      ]
     }
   ],
   "missingSheets": [],
   "formulaErrors": [],
-  "obsoleteLaneMatches": []
+  "obsoleteLaneMatches": [],
+  "missingTrendCharts": []
 }

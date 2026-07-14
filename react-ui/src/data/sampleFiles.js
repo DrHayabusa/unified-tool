@@ -2,7 +2,12 @@ const monthlySamples = {
   "tenable-sc": ["april", "may", "june", "july"].map((month) => `sample-data/tenable-sc/tenable_sc_${month}_2026_100plus.csv`),
   "tenable-io": ["april", "may", "june", "july"].map((month) => `sample-data/tenable-io/tenable_io_${month}_2026_100plus.csv`),
   qualys: ["april", "may", "june", "july"].map((month) => `sample-data/qualys/qualys_monthly_${month}_2026_100plus.csv`),
-  crowdstrike: ["april", "may", "june", "july"].map((month) => `sample-data/crowdstrike/crowdstrike_vulnerabilities_${month}_2026_100plus.csv`),
+};
+
+const crowdStrikeMonthlySamples = {
+  vulnerabilities: ["april", "may", "june", "july"].map((month) => `sample-data/crowdstrike/crowdstrike_vulnerabilities_${month}_2026_100plus.csv`),
+  // Both detailed exports share the supported per-finding schema in this test pack.
+  "vulnerability-per-asset": ["april", "may", "june", "july"].map((month) => `sample-data/crowdstrike/crowdstrike_vulnerabilities_${month}_2026_100plus.csv`),
 };
 
 const adhocSamples = {
@@ -14,6 +19,9 @@ const adhocSamples = {
 
 export async function loadBundledSamples(sourceId, workflow, crowdStrikeVariant = "vulnerability-per-asset") {
   let paths = workflow === "monthly" ? monthlySamples[sourceId] : [adhocSamples[sourceId]];
+  if (workflow === "monthly" && sourceId === "crowdstrike") {
+    paths = crowdStrikeMonthlySamples[crowdStrikeVariant] ?? crowdStrikeMonthlySamples["vulnerability-per-asset"];
+  }
   if (workflow === "adhoc" && sourceId === "crowdstrike") {
     const variants = {
       vulnerabilities: "sample-data/crowdstrike/crowdstrike_vulnerabilities_july_2026_100plus.csv",
@@ -29,6 +37,10 @@ export async function loadBundledSamples(sourceId, workflow, crowdStrikeVariant 
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Sample download failed with HTTP ${response.status}: ${path}`);
     const blob = await response.blob();
-    return new File([blob], path.split("/").at(-1), { type: "text/csv" });
+    const sourceName = path.split("/").at(-1);
+    const fileName = workflow === "monthly" && sourceId === "crowdstrike" && crowdStrikeVariant === "vulnerability-per-asset"
+      ? sourceName.replace("crowdstrike_vulnerabilities_", "crowdstrike_vulnerability_per_asset_")
+      : sourceName;
+    return new File([blob], fileName, { type: "text/csv" });
   }));
 }

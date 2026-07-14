@@ -1,6 +1,6 @@
 {
   "status": "PASS",
-  "input": "output/pdf/mva_qualys_final_remediation_guide.pdf",
+  "input": "final/PDF/MVA_Qualys_Remediation_Guide.pdf",
   "pages": 13,
   "clickable_links": 11,
   "checks_passed": 15,

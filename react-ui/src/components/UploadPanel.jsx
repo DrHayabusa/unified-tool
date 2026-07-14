@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { CheckCircle2, CloudUpload, FileSearch, LockKeyhole, Upload } from "lucide-react";
+import { CheckCircle2, CloudUpload, FileSearch, FileSpreadsheet, LockKeyhole, Table2, Upload } from "lucide-react";
 import { loadBundledSamples } from "../data/sampleFiles.js";
+import { downloadAnalysisWorkbook, downloadNormalizedCsv } from "../lib/reportExport.js";
+import { isSupportedUploadFile } from "../lib/uploadFiles.js";
 
 export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
   const [file, setFile] = useState(null);
@@ -9,8 +11,8 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
 
   const selectFile = (nextFile) => {
     if (!nextFile) return;
-    if (!nextFile.name.toLowerCase().endsWith(".csv")) {
-      setStatus({ state: "error", message: "Select a CSV export. XLSX input is not enabled in this browser release." });
+    if (!isSupportedUploadFile(nextFile)) {
+      setStatus({ state: "error", message: "Select a CSV or XLSX export. Legacy XLS files must first be saved as XLSX." });
       return;
     }
     setFile(nextFile);
@@ -41,6 +43,27 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
     }
   };
 
+  const downloadExcel = async () => {
+    if (!analysis || status.state === "loading") return;
+    setStatus({ state: "loading", message: "Building the Adhoc Excel report..." });
+    try {
+      await downloadAnalysisWorkbook(analysis);
+      setStatus({ state: "success", message: "Adhoc Excel report generated and downloaded." });
+    } catch (error) {
+      setStatus({ state: "error", message: error.message || "Excel export failed." });
+    }
+  };
+
+  const downloadCsv = () => {
+    if (!analysis || status.state === "loading") return;
+    try {
+      downloadNormalizedCsv(analysis);
+      setStatus({ state: "success", message: "Normalized findings CSV generated and downloaded." });
+    } catch (error) {
+      setStatus({ state: "error", message: error.message || "CSV export failed." });
+    }
+  };
+
   return (
     <section className="cyber-panel rounded-[1.75rem] p-5">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
@@ -48,10 +71,10 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
           <p className="mini-label">Upload Export File</p>
           <h2 className="mt-1 text-2xl font-black text-white">Adhoc file intake</h2>
           <p className="mt-1 text-sm font-semibold text-slate-400">
-            Analyze one {selectedSource.name} CSV with automatic export-type detection.
+            Analyze one {selectedSource.name} CSV or XLSX with automatic export-type detection.
           </p>
         </div>
-        <div className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-sm font-bold text-cyan-200">CSV up to 500MB</div>
+        <div className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-sm font-bold text-cyan-200">CSV/XLSX up to 500MB</div>
       </div>
 
       <label
@@ -62,14 +85,14 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
           selectFile(event.dataTransfer.files?.[0]);
         }}
       >
-        <input className="sr-only" type="file" accept=".csv,text/csv" onChange={(event) => selectFile(event.target.files?.[0])} />
+        <input className="sr-only" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => { selectFile(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
         {analysis ? (
           <CheckCircle2 className="mb-4 h-16 w-16 text-emerald-300" />
         ) : (
           <CloudUpload className="mb-4 h-16 w-16 text-slate-300 transition group-hover:text-emerald-300" />
         )}
         <p className="text-lg font-black text-white">
-          {analysis ? "Analysis complete" : file ? file.name : "Drop one CSV here or click once to browse"}
+          {analysis ? "Analysis complete" : file ? file.name : "Drop one CSV or XLSX here or click once to browse"}
         </p>
         <p className="mt-2 text-sm font-semibold text-slate-500">
           {analysis ? `${analysis.exportType} detected automatically` : file ? formatBytes(file.size) : "The file remains in this browser until an optional AI handoff."}
@@ -98,7 +121,7 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
           className="neon-button flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-45"
         >
           {status.state === "loading" ? <FileSearch className="h-4 w-4 animate-pulse" /> : <Upload className="h-4 w-4" />}
-          {status.state === "loading" ? "Analyzing CSV..." : analysis ? "Re-analyze Selected CSV" : "Analyze & Generate Dashboard"}
+          {status.state === "loading" ? "Working..." : analysis ? "Re-analyze Selected Export" : "Analyze & Generate Dashboard"}
         </button>
         <div
           className={`rounded-xl border px-4 py-3 text-xs font-bold ${
@@ -109,12 +132,25 @@ export function UploadPanel({ selectedSource, analysis, onAnalyze }) {
                 : "border-white/10 bg-white/5 text-slate-400"
           }`}
         >
-          {status.message || "Select a CSV to begin."}
+          {status.message || "Select a CSV or XLSX export to begin."}
         </div>
       </div>
 
+      {analysis && (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={downloadExcel} disabled={status.state === "loading"} className="ghost-button flex items-center justify-center gap-2 disabled:cursor-wait disabled:opacity-45">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-300" />
+            Download Excel Report
+          </button>
+          <button type="button" onClick={downloadCsv} disabled={status.state === "loading"} className="ghost-button flex items-center justify-center gap-2 disabled:cursor-wait disabled:opacity-45">
+            <Table2 className="h-4 w-4 text-cyan-300" />
+            Download Normalized CSV
+          </button>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap gap-3">
-        <span className="rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-200">Local CSV comparison</span>
+        <span className="rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-200">Local CSV/XLSX processing</span>
         <span className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-400">
           <LockKeyhole className="h-4 w-4 text-emerald-300" />
           Data leaves the browser only when you request an AI report

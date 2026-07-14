@@ -20,6 +20,7 @@ export default function App() {
   const [mode, setMode] = useState(null);
   const [adhocAnalysis, setAdhocAnalysis] = useState(null);
   const [monthlyAnalysis, setMonthlyAnalysis] = useState(null);
+  const [monthlyFiles, setMonthlyFiles] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState("");
 
   const selectedSource = useMemo(
@@ -45,6 +46,7 @@ export default function App() {
     setSelectedSourceId(sourceId);
     setAdhocAnalysis(null);
     setMonthlyAnalysis(null);
+    setMonthlyFiles([]);
     setSelectedMonth("");
   };
 
@@ -57,9 +59,21 @@ export default function App() {
 
   const handleMonthlyAnalyze = async (files) => {
     const result = await analyzeMonthlyFiles(files, selectedSourceId);
+    setMonthlyFiles(Array.from(files ?? []));
     setMonthlyAnalysis(result);
     setSelectedMonth(result.dashboard.uploadedMonths.at(-1));
     return result;
+  };
+
+  const handleEditMonthlyUploads = () => {
+    setMonthlyAnalysis(null);
+    setSelectedMonth("");
+  };
+
+  const handleResetMonthlyUploads = () => {
+    setMonthlyAnalysis(null);
+    setMonthlyFiles([]);
+    setSelectedMonth("");
   };
 
   return (
@@ -110,6 +124,11 @@ export default function App() {
                     selectedSource={selectedSource}
                     selectedMonth={selectedMonth}
                     onMonthChange={setSelectedMonth}
+                    files={monthlyFiles}
+                    onFilesChange={setMonthlyFiles}
+                    onEditUploads={handleEditMonthlyUploads}
+                    onResetUploads={handleResetMonthlyUploads}
+                    onBackToDashboard={() => setMode(null)}
                   />
                 )}
               </div>
@@ -167,7 +186,7 @@ function EmptyWorkflow() {
       <p className="mini-label">Waiting for data</p>
       <h2 className="mt-2 text-2xl font-black text-white">Upload an export to unlock Adhoc metrics</h2>
       <p className="mx-auto mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
-        Once a CSV/XLSX is uploaded, MVA renders Total Open, Critical, High, Medium, Low, and Immediate Patch Needed with live trend sparklines.
+        Once a CSV or XLSX is uploaded, MVA renders Total Open, Critical, High, Medium, Low, and Immediate Patch Needed with live trend sparklines.
       </p>
     </section>
   );
@@ -178,7 +197,7 @@ function StatusPanel({ selectedSource, mode, adhocUploaded, monthlyUploaded }) {
     mode === "monthly"
       ? monthlyUploaded
         ? "Monthly report analyzed"
-        : "Waiting for monthly CSVs"
+        : "Waiting for monthly exports"
       : adhocUploaded
         ? "Adhoc report analyzed"
         : "Waiting";

@@ -12,7 +12,7 @@ This document is the definitive build, operation, validation, and reconstruction
 
 MVA is a browser-first vulnerability intake and remediation platform. It:
 
-1. Accepts supported scanner CSV exports.
+1. Accepts supported scanner CSV and modern XLSX exports.
 2. Detects and validates the export format.
 3. Normalizes source fields into one MVA schema.
 4. Filters closed/suppressed records where the source provides a status.
@@ -39,12 +39,22 @@ Implemented source workflows:
 
 MDVM and Custom CSV are visibly disabled rather than pretending to work.
 
+### Final Workflow Guarantees
+
+- Monthly selections are session-owned and cumulative: separate drops add files instead of replacing the previous selection.
+- Matching filenames replace only their earlier copy; every file can be removed independently or cleared as a group.
+- Monthly results expose `Edit Monthly Files` with the selection preserved and `Dashboard` for source/mode navigation.
+- CrowdStrike export choices and filename conventions are visible in both workflows. Remediation per assets remains correctly restricted to Adhoc.
+- Adhoc analysis exposes Excel and normalized CSV downloads.
+- CSV and XLSX use the same detection, normalization, scoring, dashboard, and reporting code after parsing.
+- Prepared source workbooks include native Discovered and Remediated line charts. Browser-generated Monthly Excel includes the same two charts as embedded images.
+
 ## 2. Architecture
 
 ```mermaid
 flowchart LR
   User["Analyst browser"] --> UI["React + Tailwind UI"]
-  UI --> Parser["Papa Parse CSV worker"]
+  UI --> Parser["Papa Parse CSV / ExcelJS XLSX reader"]
   Parser --> Detect["Source detection and validation"]
   Detect --> Normalize["Canonical MVA findings"]
   Normalize --> Priority["Exploit-aware P1-P4 engine"]
@@ -71,8 +81,9 @@ No scanner row is uploaded during parsing, comparison, dashboarding, Excel gener
 | Visual system | Tailwind CSS 3 plus custom CSS | Dark cybersecurity design, responsive layout, color tokens, cards, motion |
 | Charts | Recharts | Three-month line charts, priority bars, age/priority bars, sparklines |
 | Icons | Lucide React plus custom source marks | Accessible action and scanner identity symbols |
-| CSV | Papa Parse | Header parsing, worker mode for files over 5 MB, warnings |
-| Browser Excel | ExcelJS, lazy-loaded | Monthly/adhoc report and normalized findings workbook |
+| CSV input | Papa Parse | Header parsing, worker mode for files over 5 MB, warnings |
+| XLSX input | ExcelJS, lazy-loaded | Finds a recognized scanner header in the first 30 rows of each worksheet |
+| Browser Excel output | ExcelJS, lazy-loaded | Monthly/adhoc reports, complete normalized findings, and embedded trend charts |
 | Browser PDF | jsPDF, lazy-loaded | Approved Remediation Guide rendering and download |
 | Reference engine | Python 3 standard library | Independent normalization/dashboard regression oracle |
 | Reference PDF | ReportLab | Deterministic team sample and semantic/visual validation artifact |
@@ -89,6 +100,8 @@ react-ui/src/App.jsx                         application shell and workflow stat
 react-ui/src/components/                     source, upload, dashboards, exports, AI UI
 react-ui/src/lib/vulnerabilityEngine.js      browser normalization and calculations
 react-ui/src/lib/vulnerabilityEngine.test.js regression and source tests
+react-ui/src/lib/uploadFiles.js               cumulative upload, deduplication, and removal rules
+react-ui/src/lib/uploadFiles.test.js          upload-state regression tests
 react-ui/src/lib/reportExport.js             Excel and normalized CSV exports
 react-ui/src/lib/pdfReport.js                prompt, local Markdown, PDF renderer
 react-ui/src/lib/aiProviders.js               provider catalog and request layer
@@ -578,7 +591,7 @@ Do not add a database merely for convenience. Add persistence only after definin
 ## 22. Security Invariants
 
 1. No real key in tracked files.
-2. No raw CSV upload for local dashboards and exports.
+2. No raw CSV/XLSX upload leaves the browser for local dashboards and exports.
 3. No AI call without explicit user action.
 4. Provider switch clears credentials.
 5. Direct provider key is sent in the Authorization header only.
