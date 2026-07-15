@@ -77,17 +77,20 @@ export function CustomerValueDashboards({ analysis }) {
 
 function ThreatDashboard({ threat }) {
   const ssvcData = Object.entries(threat.ssvcCounts).map(([decision, count]) => ({ decision, count }));
+  const exposureValue = threat.internetExposureObserved ? threat.internetExposed : "Not supplied";
+  const exposureHelper = threat.internetExposureObserved
+    ? `${threat.internetExposureObserved} assessed | ${threat.internetExposureUnknown} unknown`
+    : `${threat.internetExposureUnknown} findings have unknown exposure`;
   const metrics = [
     [ShieldAlert, "Threat Review Queue", threat.reviewQueue, "Additional evidence warrants review", "text-red-300"],
-    [BadgeCheck, "CISA KEV", threat.cisaKev, "Known exploited evidence", "text-orange-300"],
     [Radar, "Exploit Available", threat.exploitAvailable, "Scanner-reported exploit signal", "text-amber-200"],
-    [Layers3, "Internet Exposed", threat.internetExposed, "Source field available", "text-sky-300"],
+    [Layers3, "Confirmed Internet Exposed", exposureValue, exposureHelper, "text-sky-300"],
     [Sparkles, "EPSS >= 50%", threat.epssAbove50, `${threat.epssObserved} findings include EPSS`, "text-cyan-300"],
   ];
 
   return (
     <div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map(([Icon, label, value, helper, tone]) => <MetricCard key={label} icon={Icon} label={label} value={value} helper={helper} tone={tone} />)}
       </div>
 

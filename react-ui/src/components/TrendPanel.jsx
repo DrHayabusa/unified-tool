@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Crosshair, Globe2, Server } from "lucide-react";
+import { Globe2, Server } from "lucide-react";
 
 export function TrendPanel({ dashboard }) {
   const assets = (dashboard?.top10AffectedAssets ?? []).map((row) => ({
@@ -7,7 +7,7 @@ export function TrendPanel({ dashboard }) {
     fullAsset: row.asset,
     count: row.vulnerabilityCount,
   }));
-  const showCrowdStrikeSignals = (dashboard?.cisaKev ?? 0) > 0 || (dashboard?.internetExposed ?? 0) > 0;
+  const showCrowdStrikeSignals = (dashboard?.internetExposureObserved ?? 0) > 0;
 
   return (
     <section className="cyber-panel rounded-[1.75rem] p-5">
@@ -39,9 +39,8 @@ export function TrendPanel({ dashboard }) {
       </div>
 
       {showCrowdStrikeSignals && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <Signal icon={Crosshair} label="CISA KEV" value={dashboard.cisaKev} tone="text-red-300" />
-          <Signal icon={Globe2} label="Internet Exposed" value={dashboard.internetExposed} tone="text-cyan-300" />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Signal icon={Globe2} label="Confirmed Internet Exposed" value={dashboard.internetExposed} tone="text-cyan-300" />
           <Signal icon={Server} label="Exploit Available" value={dashboard.exploitAvailable} tone="text-orange-300" />
         </div>
       )}

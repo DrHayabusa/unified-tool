@@ -21,7 +21,7 @@ const mappings = {
   ],
   crowdstrike: [
     ["IP Address", "LocalIP"], ["DNS Name", "Hostname"], ["Vulnerability Name", "CVE Description / RecommendedRemediation"], ["CVE", "CVE ID"],
-    ["Severity", "Severity / Critical-High-Medium-Low counts"], ["Exploit Available", "Exploit status label / Exploits / CISA KEV"], ["First Discovered", "Created Date"], ["Remediation", "Recommended Remediations / RemediationDetail"],
+    ["Severity", "Severity / Critical-High-Medium-Low counts"], ["Exploit Available", "Exploit status label / Exploits"], ["First Discovered", "Created Date"], ["Remediation", "Recommended Remediations / RemediationDetail"],
   ],
 };
 

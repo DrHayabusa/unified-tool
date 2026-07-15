@@ -469,7 +469,7 @@ function TrendLineChart({ data = [], valueKey, color, seriesName }) {
 }
 
 function Kpi({ label, value, helper, color }) {
-  return <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-4"><p className="font-mono text-[0.65rem] font-bold uppercase tracking-[0.15em] text-slate-500">{label}</p><p className="mt-2 text-3xl font-black tracking-[-0.05em]" style={{ color }}>{Number(value).toLocaleString()}</p><p className="mt-1 truncate text-xs font-semibold text-slate-500" title={helper}>{helper}</p></article>;
+  return <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-4"><p className="font-mono text-[0.65rem] font-bold uppercase tracking-[0.15em] text-slate-500">{label}</p><p className="mt-2 text-3xl font-black tracking-[-0.05em]" style={{ color }}>{typeof value === "number" ? value.toLocaleString() : value}</p><p className="mt-1 truncate text-xs font-semibold text-slate-500" title={helper}>{helper}</p></article>;
 }
 
 function ChartPanel({ number, title, subtitle, children }) {
@@ -481,7 +481,11 @@ function OpenMeasure({ label, value, color }) {
 }
 
 function CrowdStrikeInsights({ insights }) {
-  return <section className="mt-5 rounded-2xl border border-red-300/15 bg-red-400/[0.035] p-5"><div className="mb-4"><p className="mini-label text-red-300">CrowdStrike Exposure Signals</p><h3 className="mt-1 text-xl font-black text-white">Prioritize exploitable and exposed assets</h3></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Kpi label="Exploit Available" value={insights.exploitAvailable} helper="Exploit status or CISA KEV" color="#fb923c" /><Kpi label="CISA KEV" value={insights.cisaKev} helper="Known exploited catalog" color="#ef4444" /><Kpi label="Internet Exposed" value={insights.internetExposed} helper="Open findings" color="#22d3ee" /><Kpi label="Critical Assets" value={insights.criticalAssets} helper="Distinct affected assets" color="#c084fc" /></div></section>;
+  const exposureValue = insights.internetExposureObserved ? insights.internetExposed : "Not supplied";
+  const exposureHelper = insights.internetExposureObserved
+    ? `${insights.internetExposureObserved} assessed | ${insights.internetExposureUnknown} unknown`
+    : "No authoritative exposure field in the export";
+  return <section className="mt-5 rounded-2xl border border-red-300/15 bg-red-400/[0.035] p-5"><div className="mb-4"><p className="mini-label text-red-300">CrowdStrike Exposure Signals</p><h3 className="mt-1 text-xl font-black text-white">Prioritize exploitable and exposed assets</h3></div><div className="grid gap-3 sm:grid-cols-3"><Kpi label="Exploit Available" value={insights.exploitAvailable} helper="Scanner exploit signal" color="#fb923c" /><Kpi label="Confirmed Internet Exposed" value={exposureValue} helper={exposureHelper} color="#22d3ee" /><Kpi label="Critical Assets" value={insights.criticalAssets} helper="Distinct affected assets" color="#c084fc" /></div></section>;
 }
 
 function Requirement({ title, body }) {
