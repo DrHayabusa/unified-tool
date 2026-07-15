@@ -375,7 +375,7 @@ function MonthlyUploadGate({ selectedSource, onAnalyze, files = [], onFilesChang
         <div className="grid gap-4">
           <Requirement title={`2+ ${labels.title} Periods`} body={unified ? `Upload one file per selected tool for at least two distinct ${labels.lower} periods.` : "Calculates total open, new, not closed, and patched findings."} />
           <Requirement title={`3+ ${labels.title} Periods`} body={`Builds the required three-${labels.unitLower} discovered and patched line charts.`} />
-          <Requirement title="Auto Field Mapping" body={unified ? "Every file is independently detected and mapped before cross-scanner consolidation." : `${selectedSource.name} headers are detected and normalized before comparison.`} />
+          <Requirement title="Auto Field Mapping" body={unified ? "Every file is independently detected and mapped before multi-tool consolidation." : `${selectedSource.name} headers are detected and normalized before comparison.`} />
           {detectedMonths.length > 0 && <Requirement title={`Detected ${labels.plural}`} body={detectedMonths.join(" | ")} />}
         </div>
       </div>

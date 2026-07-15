@@ -92,7 +92,7 @@ test("Unified workbook preserves scanner provenance and consolidation audit", as
   assert.equal(workbook.worksheets[0].name, "Unified Dashboard");
   assert.ok(unified);
   assert.ok(audit);
-  assert.equal(unified.getCell("A1").value, "Unified Multi-Tool Combined Analysis");
+  assert.equal(unified.getCell("A1").value, "Unified Multi-Tool Consolidated Analysis");
   assert.equal(unified.getCell("A5").value, 160);
   assert.equal(unified.getCell("I5").value, 113);
   assert.equal(unified.getCell("A10").value, 40);
@@ -120,10 +120,10 @@ test("Unified monthly Excel and PDF contain combined analysis plus remediations"
   const dashboardText = unified.getSheetValues().flat(3).filter(Boolean).join(" | ");
 
   assert.equal(workbook.worksheets[0].name, "Unified Dashboard");
-  assert.match(dashboardText, /Combined Portfolio Trend/);
+  assert.match(dashboardText, /Consolidated Analysis Trend/);
   assert.match(dashboardText, /Highest-Risk Assets/);
   assert.match(dashboardText, /Highest-Impact Vulnerabilities/);
-  assert.match(dashboardText, /Scanner Contribution/);
+  assert.match(dashboardText, /Tool Contribution/);
   assert.equal(unified.getCell("A15").value, "Period");
   assert.equal(unified.getCell("A16").value, "April 2026");
   assert.equal(unified.getCell("B19").value, 40);
@@ -140,10 +140,10 @@ test("Unified monthly Excel and PDF contain combined analysis plus remediations"
   const prompt = buildRemediationPrompt({ analysis, targetMonth: "July 2026" });
   assert.match(markdown, /## 1\. Portfolio Risk Overview/);
   assert.match(markdown, /## 2\. Trend Analysis/);
-  assert.match(markdown, /Multi-scanner Overlap/);
-  assert.match(markdown, /Scanner Contribution/);
+  assert.match(markdown, /Confirmed by Multiple Tools/);
+  assert.match(markdown, /Tool Contribution/);
   assert.match(markdown, /## 3\. Remediation Actions/);
-  assert.match(prompt, /Combined portfolio analytics for the selected reporting period/);
+  assert.match(prompt, /Consolidated analytics for the selected reporting period/);
   assert.match(prompt, /"crossToolConfirmed": 40/);
 
   const pdf = await createRemediationPdfDocument({ markdown, sourceLabel: analysis.sourceLabel, targetMonth: "July 2026", workflow: "monthly" });

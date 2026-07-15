@@ -23,13 +23,12 @@ import {
 } from "lucide-react";
 
 const TABS = [
-  ["threat", "Threat & SSVC"],
+  ["threat", "Threat Signals"],
   ["campaigns", "Campaigns"],
   ["verification", "Verification"],
   ["quality", "Data Quality"],
 ];
 const PRIORITY_TONES = { P1: "bg-red-500/15 text-red-200", P2: "bg-orange-500/15 text-orange-200", P3: "bg-amber-500/15 text-amber-100", P4: "bg-emerald-500/15 text-emerald-200" };
-const SSVC_COLORS = { Act: "#ef4444", Attend: "#f97316", "Track*": "#eab308", Track: "#22c55e" };
 const TOOLTIP_STYLE = { backgroundColor: "#09090b", border: "1px solid rgba(248,113,113,.24)", borderRadius: 14, color: "#f8fafc", fontSize: 12 };
 
 export function CustomerValueDashboards({ analysis }) {
@@ -76,7 +75,6 @@ export function CustomerValueDashboards({ analysis }) {
 }
 
 function ThreatDashboard({ threat }) {
-  const ssvcData = Object.entries(threat.ssvcCounts).map(([decision, count]) => ({ decision, count }));
   const exposureValue = threat.internetExposureObserved ? threat.internetExposed : "Not supplied";
   const exposureHelper = threat.internetExposureObserved
     ? `${threat.internetExposureObserved} assessed | ${threat.internetExposureUnknown} unknown`
@@ -94,29 +92,10 @@ function ThreatDashboard({ threat }) {
         {metrics.map(([Icon, label, value, helper, tone]) => <MetricCard key={label} icon={Icon} label={label} value={value} helper={helper} tone={tone} />)}
       </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-        <article className="rounded-2xl border border-white/10 bg-black/25 p-5">
-          <p className="mini-label">Provisional SSVC Triage</p>
-          <h3 className="mt-1 text-lg font-black text-white">Available scanner signals</h3>
-          <p className="mt-2 text-xs font-semibold leading-5 text-amber-100/80">{threat.contextNotice}</p>
-          <div className="mt-4 h-[235px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={ssvcData} margin={{ top: 10, right: 10, bottom: 4, left: -18 }}>
-                <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="decision" stroke="#64748b" />
-                <YAxis allowDecimals={false} stroke="#64748b" />
-                <Tooltip contentStyle={TOOLTIP_STYLE} />
-                <Bar dataKey="count" name="Open Findings" radius={[7, 7, 0, 0]} isAnimationActive={false}>
-                  {ssvcData.map((row) => <Cell key={row.decision} fill={SSVC_COLORS[row.decision]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="grid gap-2 text-xs font-semibold text-slate-500">
-            {threat.ssvcMethodology.map((line) => <p key={line}>{line}</p>)}
-          </div>
-        </article>
-
+      <div className="mt-5">
+        <div className="mb-4 rounded-2xl border border-sky-300/15 bg-sky-400/[0.05] px-4 py-3 text-xs font-semibold leading-5 text-sky-100/80">
+          Threat signals help analysts focus their review using exploit, exposure, EPSS, and severity evidence from the uploaded files. They do not change the approved P1-P4 patch priority.
+        </div>
         <DataTable
           title="Threat-priority review queue"
           subtitle="Threat evidence is an overlay; Patch Priority is not recalculated"

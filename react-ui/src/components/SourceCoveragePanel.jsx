@@ -15,7 +15,7 @@ export function SourceCoveragePanel({ dashboard, inputSummary }) {
 
   const metrics = [
     [Files, historical ? "Current Period Files" : "Input Files", inputSummary?.fileCount ?? 0],
-    [Layers3, "Scanner Sources", inputSummary?.sourceCount ?? sources.length],
+    [Layers3, "Tool Sources", inputSummary?.sourceCount ?? sources.length],
     [ScanSearch, historical ? "Current Observations" : "Source Observations", inputSummary?.normalizedObservations ?? 0],
     [ShieldCheck, historical ? "Current Open" : "Consolidated Open", inputSummary?.consolidatedOpenFindings ?? dashboard?.totalVulnerabilities ?? dashboard?.totalOpenVulnerabilities?.totalOpen ?? 0],
     [DatabaseZap, historical ? "Current Repeats Removed" : "Repeats Removed", inputSummary?.duplicatesRemoved ?? 0],
@@ -26,9 +26,9 @@ export function SourceCoveragePanel({ dashboard, inputSummary }) {
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="mini-label">Coverage &amp; Reconciliation Audit</p>
-          <h2 className="mt-1 text-xl font-black text-white">Scanner contribution and source provenance</h2>
+          <h2 className="mt-1 text-xl font-black text-white">Tool contribution and source tracking</h2>
           <p className="mt-2 max-w-4xl text-sm font-semibold leading-6 text-slate-400">
-            Total Open is deduplicated by asset, vulnerability, and service. Source cards show where each consolidated finding was observed, so their counts can overlap across scanners.
+            Total Open is deduplicated by asset, vulnerability, and service. A confirmed finding was reported by multiple tools; a one-tool finding was reported by only one selected source.
           </p>
         </div>
         <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-xs font-black text-emerald-200">Source provenance retained</span>
@@ -54,7 +54,7 @@ export function SourceCoveragePanel({ dashboard, inputSummary }) {
               <SourceMeasure label="P1 + P2" value={source.immediatePatch} />
               <SourceMeasure label="Critical" value={source.criticalFindings} />
               <SourceMeasure label="Exploit" value={source.exploitAvailable} />
-              <SourceMeasure label="Overlapping" value={source.crossToolConfirmed} />
+              <SourceMeasure label="Confirmed" value={source.crossToolConfirmed} />
             </div>
             <p className="mt-4 border-t border-white/10 pt-3 text-center text-[0.65rem] font-bold opacity-70">{source.exclusiveFindings.toLocaleString()} unique to this source</p>
           </article>
@@ -65,7 +65,7 @@ export function SourceCoveragePanel({ dashboard, inputSummary }) {
         <div className="mt-4 overflow-auto rounded-2xl border border-white/10 bg-black/20">
           <table className="w-full min-w-[900px] text-left text-xs">
             <thead className="bg-black/30 uppercase tracking-wide text-slate-500">
-              <tr><th className="px-4 py-3">Period</th><th className="px-4 py-3">Open</th><th className="px-4 py-3">P1 + P2</th><th className="px-4 py-3">Exploit</th><th className="px-4 py-3">Multi-scanner Overlap</th><th className="px-4 py-3">Single-scanner</th><th className="px-4 py-3">Repeats Removed</th></tr>
+              <tr><th className="px-4 py-3">Period</th><th className="px-4 py-3">Open</th><th className="px-4 py-3">P1 + P2</th><th className="px-4 py-3">Exploit</th><th className="px-4 py-3">Confirmed by Multiple Tools</th><th className="px-4 py-3">Reported by One Tool</th><th className="px-4 py-3">Repeats Removed</th></tr>
             </thead>
             <tbody>
               {dashboard.sourceTrend.map((row) => (

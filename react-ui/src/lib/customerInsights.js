@@ -1,6 +1,5 @@
 const PRIORITY_ORDER = { P1: 1, P2: 2, P3: 3, P4: 4 };
 const SEVERITY_ORDER = { Critical: 5, High: 4, Medium: 3, Low: 2, Info: 1, Unknown: 0 };
-const SSVC_ORDER = ["Act", "Attend", "Track*", "Track"];
 
 export function buildCustomerValueInsights(findings, options = {}) {
   const currentFindings = [...indexFindings(findings).values()];
@@ -24,7 +23,6 @@ function buildThreatPriority(findings) {
     epssObserved: 0,
     epssAbove50: 0,
   };
-  const ssvcCounts = Object.fromEntries(SSVC_ORDER.map((decision) => [decision, 0]));
   const queue = [];
 
   for (const finding of findings) {
@@ -44,8 +42,6 @@ function buildThreatPriority(findings) {
     if (epss != null) counts.epssObserved += weight;
     if (epss != null && epss >= 0.5) counts.epssAbove50 += weight;
 
-    const decision = provisionalSsvcDecision(finding, epss);
-    ssvcCounts[decision] += weight;
     if (elevated) {
       queue.push({
         asset: assetLabel(finding),
@@ -57,7 +53,6 @@ function buildThreatPriority(findings) {
         exposure: Number(finding.assetExposure) || 0,
         epss,
         count: weight,
-        ssvcDecision: decision,
         signals: threatSignals(finding, epss),
       });
     }
@@ -66,26 +61,8 @@ function buildThreatPriority(findings) {
   queue.sort(compareRiskRows);
   return {
     ...counts,
-    ssvcCounts,
-    ssvcMethodology: [
-      "Act: the scanner source contains active exploitation evidence.",
-      "Attend: exploit availability plus high impact/exposure, or EPSS >= 50%.",
-      "Track*: P1/P2 or EPSS >= 10% without stronger evidence.",
-      "Track: remaining findings.",
-    ],
-    contextNotice: "Provisional triage only. Customer mission prevalence and public-impact inputs are required for an official SSVC decision.",
     queue,
   };
-}
-
-function provisionalSsvcDecision(finding, epss) {
-  if (finding.cisaKev) return "Act";
-  if (
-    (finding.exploitAvailable && (["Critical", "High"].includes(finding.severity) || finding.internetExposed))
-    || (epss != null && epss >= 0.5)
-  ) return "Attend";
-  if (["P1", "P2"].includes(finding.patchPriority) || (epss != null && epss >= 0.1)) return "Track*";
-  return "Track";
 }
 
 function threatSignals(finding, epss) {
