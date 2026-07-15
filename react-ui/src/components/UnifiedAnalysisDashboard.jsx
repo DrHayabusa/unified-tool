@@ -30,9 +30,9 @@ export function UnifiedAnalysisDashboard({ dashboard }) {
   const priorityData = Object.entries(insights.patchPriorityCounts).map(([priority, findingCount]) => ({ priority, findingCount }));
 
   const metrics = [
-    { label: "Multi-scanner overlap", value: insights.crossToolConfirmed, helper: "Observed by 2+ scanners", icon: ShieldCheck, tone: "text-emerald-300" },
-    { label: "Single-scanner only", value: insights.singleSourceOnly, helper: "Observed by exactly 1 scanner", icon: Radar, tone: "text-sky-300" },
-    { label: "Overlap rate", value: `${insights.confirmationRate}%`, helper: "Multi-scanner / total open", icon: Layers3, tone: "text-cyan-300" },
+    { label: "Confirmed by multiple tools", value: insights.crossToolConfirmed, helper: "Same finding reported by 2+ tools", icon: ShieldCheck, tone: "text-emerald-300" },
+    { label: "Reported by one tool", value: insights.singleSourceOnly, helper: "Seen in exactly 1 selected tool", icon: Radar, tone: "text-sky-300" },
+    { label: "Confirmation rate", value: `${insights.confirmationRate}%`, helper: "Multi-tool confirmed / total open", icon: Layers3, tone: "text-cyan-300" },
     { label: "Immediate patch", value: insights.immediatePatch, helper: "P1 + P2 findings", icon: ShieldAlert, tone: "text-red-300" },
     { label: "Exploit available", value: insights.exploitAvailable, helper: "Positive exploit evidence", icon: Crosshair, tone: "text-orange-300" },
     { label: "Affected assets", value: insights.distinctAssets, helper: "Unique consolidated assets", icon: Activity, tone: "text-violet-300" },
@@ -43,9 +43,9 @@ export function UnifiedAnalysisDashboard({ dashboard }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="mini-label">Unified Portfolio Intelligence</p>
-          <h2 className="mt-1 text-2xl font-black text-white">Combined risk and scanner overlap</h2>
+          <h2 className="mt-1 text-2xl font-black text-white">Consolidated analysis</h2>
           <p className="mt-2 max-w-4xl text-sm font-semibold leading-6 text-slate-400">
-            One consolidated view across the selected tools. Matching observations of the same asset, vulnerability, protocol, and port count as scanner overlap; different vulnerabilities on the same asset remain separate findings.
+            One view across the selected tools. A finding is confirmed by multiple tools only when its asset, vulnerability, protocol, and port match. Different vulnerabilities on the same asset remain separate findings.
           </p>
         </div>
         <span className="rounded-full border border-red-300/20 bg-red-400/[0.08] px-4 py-2 text-xs font-black text-red-100">
@@ -66,7 +66,7 @@ export function UnifiedAnalysisDashboard({ dashboard }) {
 
       {historical ? (
         <div className="mt-6 grid gap-5 xl:grid-cols-2">
-          <ChartCard title="Combined portfolio movement" subtitle="Open, new, and patched findings across all selected scanners">
+          <ChartCard title="Consolidated vulnerability trend" subtitle="Open, new, and patched findings across all selected tools">
             <ResponsiveContainer width="100%" height={285}>
               <LineChart data={trend} margin={{ top: 14, right: 20, bottom: 6, left: -8 }}>
                 <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
@@ -96,7 +96,7 @@ export function UnifiedAnalysisDashboard({ dashboard }) {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard className="xl:col-span-2" title="Scanner overlap over time" subtitle="Multi-scanner overlap, single-scanner findings, and repeated rows removed during consolidation">
+          <ChartCard className="xl:col-span-2" title="Finding confirmation trend" subtitle="Findings confirmed by multiple tools, reported by one tool, and repeated rows removed during consolidation">
             <ResponsiveContainer width="100%" height={275}>
               <BarChart data={trend} margin={{ top: 14, right: 20, bottom: 6, left: -8 }}>
                 <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
@@ -104,8 +104,8 @@ export function UnifiedAnalysisDashboard({ dashboard }) {
                 <YAxis allowDecimals={false} stroke="#64748b" />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
                 <Legend wrapperStyle={legendStyle} />
-                <Bar dataKey="crossToolConfirmed" name="Multi-scanner Overlap" fill="#34d399" radius={[6, 6, 0, 0]} isAnimationActive={false} />
-                <Bar dataKey="singleSourceOnly" name="Single-scanner Only" fill="#38bdf8" radius={[6, 6, 0, 0]} isAnimationActive={false} />
+                <Bar dataKey="crossToolConfirmed" name="Confirmed by Multiple Tools" fill="#34d399" radius={[6, 6, 0, 0]} isAnimationActive={false} />
+                <Bar dataKey="singleSourceOnly" name="Reported by One Tool" fill="#38bdf8" radius={[6, 6, 0, 0]} isAnimationActive={false} />
                 <Bar dataKey="repeatsRemoved" name="Repeated Rows Removed" fill="#f97316" radius={[6, 6, 0, 0]} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
@@ -113,7 +113,7 @@ export function UnifiedAnalysisDashboard({ dashboard }) {
         </div>
       ) : (
         <div className="mt-6 grid gap-5 xl:grid-cols-2">
-          <ChartCard title="Detection overlap by scanner count" subtitle="Same asset, vulnerability, protocol, and port observed by exactly 1, 2, 3, or 4 selected scanners">
+          <ChartCard title="Findings by number of reporting tools" subtitle="Same asset, vulnerability, protocol, and port reported by exactly 1, 2, 3, or 4 selected tools">
             <ResponsiveContainer width="100%" height={265}>
               <BarChart data={insights.sourceAgreementDistribution} margin={{ top: 14, right: 20, bottom: 6, left: -8 }}>
                 <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
@@ -125,7 +125,7 @@ export function UnifiedAnalysisDashboard({ dashboard }) {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Combined priority exposure" subtitle="Open findings after cross-tool consolidation">
+          <ChartCard title="Consolidated priority distribution" subtitle="Open findings after multi-tool consolidation">
             <ResponsiveContainer width="100%" height={265}>
               <BarChart data={priorityData} margin={{ top: 14, right: 20, bottom: 6, left: -8 }}>
                 <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />

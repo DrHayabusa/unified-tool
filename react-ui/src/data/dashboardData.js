@@ -62,7 +62,7 @@ export const unifiedSourceTool = {
   name: "Unified Multi-Tool",
   shortName: "ALL",
   accent: "red",
-  description: "Consolidated analysis with scanner overlap",
+  description: "Consolidated analysis with multi-tool confirmation",
   mapped: "Source-aware canonical mapping",
   implemented: true,
 };

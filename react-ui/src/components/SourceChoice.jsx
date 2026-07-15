@@ -21,7 +21,7 @@ export function SourceChoice({ selectionMode = "single", selectedSourceIds = [],
 
       <div className={`mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${unified ? "border-red-300/25 bg-red-400/[0.07]" : "border-white/10 bg-white/[0.025]"}`}>
         <div>
-          <p className="text-sm font-black text-white">{unified ? "Cross-scanner consolidation enabled" : "Source-specific analysis enabled"}</p>
+          <p className="text-sm font-black text-white">{unified ? "Multi-tool consolidation enabled" : "Source-specific analysis enabled"}</p>
           <p className="mt-1 text-xs font-semibold text-slate-400">
             {unified
               ? "Select two or more tools. Files are detected independently, normalized, and deduplicated with source provenance retained."

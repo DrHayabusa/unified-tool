@@ -37,8 +37,8 @@ Create an industry-standard document with this exact document identity:
 
 Required structure:
 1. A clean Contents section.
-2. Portfolio Risk Overview with actionable counts, P1-P4 posture, scanner overlap, and source contribution when combined scanner analytics are supplied.
-3. Trend Analysis with total open, new, patched, P1-P4, multi-scanner overlap, and single-scanner movement when historical analytics are supplied.
+2. Portfolio Risk Overview with actionable counts, P1-P4 posture, multi-tool confirmation, and tool contribution when consolidated analytics are supplied.
+3. Trend Analysis with total open, new, patched, P1-P4, findings confirmed by multiple tools, and findings reported by one tool when historical analytics are supplied.
 4. Remediation Actions ordered P1, P2, P3, then P4.
 5. Group repeated findings by CVE or vulnerability name. For every action include affected finding count, example assets, CVE, severity, patch priority, reference links, prerequisites, numbered remediation steps, command examples, rollback, and validation.
 6. Put every command in a fenced code block with a language tag (bash, powershell, sql, or text).
@@ -49,7 +49,7 @@ Required structure:
 Dashboard summary:
 ${JSON.stringify(summary, null, 2)}
 
-Combined portfolio analytics for the selected reporting period:
+Consolidated analytics for the selected reporting period:
 ${JSON.stringify(portfolio, null, 2)}
 
 Decision intelligence for prioritization and remediation grouping:
@@ -98,9 +98,9 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
       `| Affected Assets | ${portfolio.distinctAssets} |`,
       `| Immediate Patch (P1 + P2) | ${portfolio.immediatePatch} |`,
       `| Exploit Available | ${portfolio.exploitAvailable} |`,
-      `| Multi-scanner Overlap | ${portfolio.crossToolConfirmed} |`,
-      `| Single-scanner Only | ${portfolio.singleSourceOnly} |`,
-      `| Overlap Rate | ${portfolio.confirmationRate}% |`,
+      `| Confirmed by Multiple Tools | ${portfolio.crossToolConfirmed} |`,
+      `| Reported by One Tool | ${portfolio.singleSourceOnly} |`,
+      `| Confirmation Rate | ${portfolio.confirmationRate}% |`,
       "",
       "### Patch Priority Posture",
       "",
@@ -111,9 +111,9 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
     if (portfolio.sourceContribution.length) {
       lines.push(
         "",
-        "### Scanner Contribution",
+        "### Tool Contribution",
         "",
-        "| Scanner | Observed | P1 + P2 | Exploit Available | Multi-scanner Overlap | Scanner-only |",
+        "| Tool | Observed | P1 + P2 | Exploit Available | Confirmed by Multiple Tools | Reported Only by This Tool |",
         "| --- | ---: | ---: | ---: | ---: | ---: |",
         ...portfolio.sourceContribution.map((source) => `| ${source.sourceLabel} | ${source.openFindings} | ${source.immediatePatch} | ${source.exploitAvailable} | ${source.crossToolConfirmed} | ${source.exclusiveFindings} |`),
       );
@@ -134,7 +134,7 @@ export function buildTemplateMarkdown({ analysis, targetMonth }) {
       "",
       "## 2. Trend Analysis",
       "",
-      "| Period | Total Open | New | Patched | P1 | P2 | P3 | P4 | Multi-scanner Overlap | Single-scanner |",
+      "| Period | Total Open | New | Patched | P1 | P2 | P3 | P4 | Confirmed by Multiple Tools | Reported by One Tool |",
       "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
       ...portfolio.trend.map((row) => `| ${row.period} | ${row.totalOpen} | ${row.newFindings} | ${row.patchedFindings} | ${row.P1} | ${row.P2} | ${row.P3} | ${row.P4} | ${row.crossToolConfirmed} | ${row.singleSourceOnly} |`),
     );
@@ -459,8 +459,6 @@ function buildSelectedDecisionContext(analysis, targetMonth) {
       internetExposureObserved: insights.threatPriority.internetExposureObserved,
       internetExposureUnknown: insights.threatPriority.internetExposureUnknown,
       epssAbove50: insights.threatPriority.epssAbove50,
-      provisionalSsvc: insights.threatPriority.ssvcCounts,
-      interpretationBoundary: insights.threatPriority.contextNotice,
     },
     remediationCampaigns: insights.remediationCampaigns.campaigns.slice(0, 15).map((campaign) => ({
       priority: campaign.primaryPriority,
