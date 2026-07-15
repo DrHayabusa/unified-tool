@@ -9,8 +9,9 @@ export function buildRemediationPrompt({ analysis, targetMonth }) {
     cve: group.finding.cve || "N/A",
     severity: group.finding.severity,
     exploitAvailability: group.finding.exploitAvailable ? "Available" : "No known exploit",
-    cisaKev: Boolean(group.finding.cisaKev),
-    internetExposed: Boolean(group.finding.internetExposed),
+    internetExposure: group.finding.internetExposureKnown
+      ? (group.finding.internetExposed ? "Confirmed exposed" : "Confirmed not exposed")
+      : "Unknown / not supplied",
     epssScore: group.finding.epssScore,
     patchPriority: group.finding.patchPriority,
     product: group.finding.product || group.finding.platformDetails,
@@ -453,9 +454,10 @@ function buildSelectedDecisionContext(analysis, targetMonth) {
   return {
     threatPriority: {
       reviewQueue: insights.threatPriority.reviewQueue,
-      cisaKev: insights.threatPriority.cisaKev,
       exploitAvailable: insights.threatPriority.exploitAvailable,
       internetExposed: insights.threatPriority.internetExposed,
+      internetExposureObserved: insights.threatPriority.internetExposureObserved,
+      internetExposureUnknown: insights.threatPriority.internetExposureUnknown,
       epssAbove50: insights.threatPriority.epssAbove50,
       provisionalSsvc: insights.threatPriority.ssvcCounts,
       interpretationBoundary: insights.threatPriority.contextNotice,

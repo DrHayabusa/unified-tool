@@ -17,9 +17,10 @@ function buildThreatPriority(findings) {
   const counts = {
     totalOpen: weightedTotal(findings),
     reviewQueue: 0,
-    cisaKev: 0,
     exploitAvailable: 0,
     internetExposed: 0,
+    internetExposureObserved: 0,
+    internetExposureUnknown: 0,
     epssObserved: 0,
     epssAbove50: 0,
   };
@@ -36,9 +37,10 @@ function buildThreatPriority(findings) {
       || (epss != null && epss >= 0.5),
     );
     if (elevated) counts.reviewQueue += weight;
-    if (finding.cisaKev) counts.cisaKev += weight;
     if (finding.exploitAvailable) counts.exploitAvailable += weight;
     if (finding.internetExposed) counts.internetExposed += weight;
+    if (finding.internetExposureKnown) counts.internetExposureObserved += weight;
+    else counts.internetExposureUnknown += weight;
     if (epss != null) counts.epssObserved += weight;
     if (epss != null && epss >= 0.5) counts.epssAbove50 += weight;
 
@@ -66,7 +68,7 @@ function buildThreatPriority(findings) {
     ...counts,
     ssvcCounts,
     ssvcMethodology: [
-      "Act: CISA KEV evidence is present.",
+      "Act: the scanner source contains active exploitation evidence.",
       "Attend: exploit availability plus high impact/exposure, or EPSS >= 50%.",
       "Track*: P1/P2 or EPSS >= 10% without stronger evidence.",
       "Track: remaining findings.",
@@ -88,7 +90,7 @@ function provisionalSsvcDecision(finding, epss) {
 
 function threatSignals(finding, epss) {
   const signals = [];
-  if (finding.cisaKev) signals.push("CISA KEV");
+  if (finding.cisaKev) signals.push("Active exploitation evidence");
   if (finding.exploitAvailable) signals.push("Exploit available");
   if (finding.internetExposed) signals.push("Internet exposed");
   if (epss != null) signals.push(`EPSS ${(epss * 100).toFixed(1)}%`);
